@@ -1,0 +1,33 @@
+# SPARING Monitor — Python dependencies
+# Install: pip install -r requirements.txt
+
+# HTTP client
+requests>=2.31.0
+
+# JWT encode/decode
+PyJWT>=2.8.0
+
+# Serial communication & USB port detection (wajib untuk USB TTL RS485)
+pyserial>=3.5
+
+# Modbus RTU over RS-485 via USB TTL (CH340 / CP210x / FT232 / Prolific)
+pymodbus>=3.6.0
+
+# Image display (logo)
+Pillow>=10.0.0
+
+# ── Driver USB RS485 (install di OS, bukan pip) ─────────────────────────────
+# Windows  : CH340  → https://www.wch-ic.com/downloads/CH341SER_EXE.html
+#             CP210x → https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+#             FT232  → https://ftdichip.com/drivers/vcp-drivers/
+#
+# Linux/RPi/OPi: driver sudah built-in kernel, langsung plug-and-play.
+#   Cek port: ls /dev/ttyUSB*  atau  ls /dev/ttyACM*
+#   Izin akses: sudo usermod -aG dialout $USER  (logout lalu login ulang)
+#
+# ── Platform-specific GPIO/ADC (opsional, untuk sensor ACS712) ──────────────
+# Raspberry Pi:
+#   pip install RPi.GPIO spidev
+#
+# Orange Pi:
+#   pip install OPi.GPIO spidev

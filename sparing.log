@@ -1,0 +1,64 @@
+[21:55:08] INFO: pymodbus tersedia
+[21:55:10] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[21:55:13] INFO: [SIM] Data 1/30 — pH=8.46  TSS=79.63 mg/L  Debit=0.0126 m³/s  I=1.01 A  V=13.05 V
+[21:55:14] INFO: Mengambil secret key dari server...
+[21:55:17] INFO: Secret key berhasil diperoleh
+[21:57:13] INFO: [SIM] Data 2/30 — pH=7.70  TSS=96.46 mg/L  Debit=0.0144 m³/s  I=2.55 A  V=11.95 V
+[21:59:13] INFO: [SIM] Data 3/30 — pH=7.88  TSS=95.00 mg/L  Debit=0.0190 m³/s  I=0.95 A  V=12.10 V
+[22:01:13] INFO: [SIM] Data 4/30 — pH=7.62  TSS=52.80 mg/L  Debit=0.0299 m³/s  I=0.23 A  V=13.63 V
+[22:03:13] INFO: [SIM] Data 5/30 — pH=8.22  TSS=79.24 mg/L  Debit=0.0206 m³/s  I=0.07 A  V=12.87 V
+[22:05:13] INFO: [SIM] Data 6/30 — pH=8.50  TSS=109.58 mg/L  Debit=0.0104 m³/s  I=0.90 A  V=13.02 V
+[22:07:13] INFO: [SIM] Data 7/30 — pH=7.89  TSS=81.38 mg/L  Debit=0.0182 m³/s  I=2.37 A  V=13.54 V
+[22:09:13] INFO: [SIM] Data 8/30 — pH=8.45  TSS=65.33 mg/L  Debit=0.0154 m³/s  I=0.40 A  V=11.77 V
+[22:10:54] INFO: pymodbus tersedia
+[22:10:54] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:10:56] INFO: [SIM] Data 1/30 — pH=7.07  TSS=84.20 mg/L  Debit=0.0160 m³/s  I=0.04 A  V=12.87 V
+[22:10:57] INFO: Mengambil secret key dari server...
+[22:11:00] INFO: Secret key berhasil diperoleh
+[22:22:23] INFO: pymodbus tersedia
+[22:22:23] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:22:26] INFO: [SIM] Data 1/30 — pH=6.66  TSS=86.79 mg/L  Debit=0.0252 m³/s  I=0.60 A  V=12.80 V
+[22:22:27] INFO: Mengambil secret key dari server...
+[22:22:30] INFO: Secret key berhasil diperoleh
+[22:25:52] INFO: pymodbus tersedia
+[22:25:52] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:25:54] INFO: [SIM] Data 1/30 — pH=7.35  TSS=83.11 mg/L  Debit=0.0255 m³/s  I=0.90 A  V=11.58 V
+[22:25:55] INFO: Mengambil secret key dari server...
+[22:25:58] INFO: Secret key berhasil diperoleh
+[22:33:44] INFO: pymodbus tersedia
+[22:33:44] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:33:46] INFO: [SIM] Data 1/30 — pH=8.33  TSS=84.56 mg/L  Debit=0.0162 m³/s  I=2.40 A  V=12.63 V
+[22:33:48] INFO: Mengambil secret key dari server...
+[22:33:50] INFO: Secret key berhasil diperoleh
+[22:43:29] INFO: pymodbus tersedia
+[22:43:29] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:43:31] INFO: [SIM] Data 1/30 — pH=8.12  TSS=79.57 mg/L  Debit=0.0254 m³/s  I=3.19 A  V=11.55 V
+[22:43:32] INFO: Mengambil secret key dari server...
+[22:43:34] INFO: Secret key berhasil diperoleh
+[22:44:04] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:45:31] INFO: [SIM] Data 2/30 — pH=7.80  TSS=68.09 mg/L  Debit=0.0308 m³/s  I=0.25 A  V=13.57 V
+[22:54:28] INFO: pymodbus tersedia
+[22:54:28] ERROR: USB RS485 init error: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:54:28] INFO: [RS485] Gagal inisialisasi port COM3: ModbusSerialClient.__init__() got an unexpected keyword argument 'rtscts'
+[22:54:30] INFO: [SIM] Data 1/30 — pH=8.48  TSS=68.52 mg/L  Debit=0.0327 m³/s  I=3.41 A  V=11.87 V
+[22:54:31] INFO: Mengambil secret key dari server...
+[22:54:36] INFO: Secret key berhasil diperoleh
+[22:55:30] INFO: pymodbus tersedia
+[22:55:30] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[22:55:30] WARNING: Gagal membuka port COM3
+[22:55:32] INFO: [SIM] Data 1/30 — pH=8.17  TSS=100.16 mg/L  Debit=0.0231 m³/s  I=2.96 A  V=13.24 V
+[22:55:34] INFO: Mengambil secret key dari server...
+[22:55:36] INFO: Secret key berhasil diperoleh
+[15:04:52] INFO: pymodbus tersedia
+[15:04:52] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[15:04:52] WARNING: Gagal membuka port COM3
+[15:04:54] INFO: [SIM] Data 1/30 — pH=6.74  TSS=95.11 mg/L  Debit=0.0336 m³/s  I=0.61 A  V=11.93 V
+[15:06:54] INFO: [SIM] Data 2/30 — pH=7.88  TSS=94.28 mg/L  Debit=0.0188 m³/s  I=0.91 A  V=11.83 V
+[15:08:54] INFO: [SIM] Data 3/30 — pH=7.59  TSS=105.02 mg/L  Debit=0.0190 m³/s  I=1.40 A  V=12.09 V
+[15:10:54] INFO: [SIM] Data 4/30 — pH=6.57  TSS=94.24 mg/L  Debit=0.0246 m³/s  I=3.09 A  V=12.63 V
+[06:21:48] INFO: pymodbus tersedia
+[06:21:49] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[06:21:49] WARNING: Gagal membuka port COM3
+[06:21:52] INFO: [SIM] Data 1/30 — pH=7.93  TSS=59.61 mg/L  Debit=0.0284 m³/s
+[06:21:53] INFO: Mengambil secret key dari server...
+[06:21:55] INFO: Secret key berhasil diperoleh
