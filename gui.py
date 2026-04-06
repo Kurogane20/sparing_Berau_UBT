@@ -29,7 +29,7 @@ class SparingGUI:
     Layout:
       Header  — logo, judul, jam digital
       Left    — 5 kartu sensor, info pengiriman, log aktivitas
-      Right   — status koneksi RS485/internet/server, offset kalibrasi, tombol
+      Right   — status koneksi RS485/internet/server, batas data, tombol
       Footer  — status bar
     """
 
@@ -241,20 +241,6 @@ class SparingGUI:
                  font=("Segoe UI", 8),
                  wraplength=220, justify="left").pack(anchor="w", pady=(2, 0))
 
-        # Offset kalibrasi
-        cal_card = self._card(right, "OFFSET KALIBRASI", C["primary_dark"])
-        cal_card.pack(fill="x", pady=(0, 8))
-        inner2 = tk.Frame(cal_card, bg=C["card"])
-        inner2.pack(fill="x", padx=14, pady=8)
-
-        self._off_ph    = tk.DoubleVar(value=self.cfg["offset_ph"])
-        self._off_tss   = tk.DoubleVar(value=self.cfg["offset_tss"])
-        self._off_debit = tk.DoubleVar(value=self.cfg["offset_debit"])
-
-        self._offset_row(inner2, "Offset pH   :", self._off_ph,    "offset_ph")
-        self._offset_row(inner2, "Offset TSS  :", self._off_tss,   "offset_tss")
-        self._offset_row(inner2, "Offset Debit:", self._off_debit, "offset_debit")
-
         # Ringkasan batas Server 2
         lim_card = self._card(right, "BATAS DATA  SERVER 2", C["light_blue"])
         lim_card.pack(fill="x", pady=(0, 8))
@@ -364,24 +350,6 @@ class SparingGUI:
                        fg=C["text_muted"], font=("Segoe UI", 10, "bold"))
         lbl.pack(side="left")
         return lbl
-
-    def _offset_row(self, parent, label: str, var: tk.DoubleVar,
-                    cfg_key: str) -> None:
-        row = tk.Frame(parent, bg=C["card"])
-        row.pack(fill="x", pady=3)
-        tk.Label(row, text=label, bg=C["card"], fg=C["text_muted"],
-                 font=("Segoe UI", 10), anchor="w", width=14).pack(side="left")
-        spin = tk.Spinbox(row, textvariable=var, from_=-999, to=999,
-                          increment=0.1, format="%.2f", width=8,
-                          font=("Segoe UI", 10), relief="flat", bg=C["bg"])
-        spin.pack(side="left", padx=(4, 0))
-
-        def _apply(event=None, k=cfg_key, v=var):
-            self.cfg[k] = round(v.get(), 3)
-            save_config(self.cfg)
-
-        spin.bind("<Return>",   _apply)
-        spin.bind("<FocusOut>", _apply)
 
     # ── Clock ─────────────────────────────────────────────────────────────────
     def _tick_clock(self) -> None:
