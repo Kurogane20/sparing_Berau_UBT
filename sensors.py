@@ -75,38 +75,69 @@ class SensorReader:
             self._mb      = None
             self._port_ok = False
 
-    def _detect_slave_kw(self) -> str:
+    def _build_rhr(self) -> None:
         """
-        Deteksi nama keyword slave ID dari signature fungsi sebenarnya.
-        Kompatibel dengan semua versi pymodbus:
-          2.x  → 'unit'
-          3.0-3.x → 'slave'
-          3.x baru → bisa 'dev_id' atau nama lain
+        Cari calling convention yang benar untuk read_holding_registers,
+        kompatibel dengan pymodbus 2.x hingga 3.12.x+.
+        Hasil disimpan di self._rhr_call sebagai lambda.
         """
         try:
-            params = inspect.signature(
-                self._mb.read_holding_registers).parameters
-            for kw in ("slave", "unit", "dev_id"):
-                if kw in params:
-                    log.info(f"pymodbus slave keyword: '{kw}'")
-                    return kw
+            params = list(inspect.signature(
+                self._mb.read_holding_registers).parameters.keys())
+            log.info(f"rhr params: {params}")
         except Exception:
+            params = []
+
+        # Coba setiap convention — TypeError = salah, lanjut ke berikutnya
+        candidates = [
+            ("slave=",   lambda a, c, s: self._mb.read_holding_registers(a, count=c, slave=s)),
+            ("unit=",    lambda a, c, s: self._mb.read_holding_registers(a, count=c, unit=s)),
+            ("dev_id=",  lambda a, c, s: self._mb.read_holding_registers(a, count=c, dev_id=s)),
+            ("slave=pos",lambda a, c, s: self._mb.read_holding_registers(a, c, slave=s)),
+            ("unit=pos", lambda a, c, s: self._mb.read_holding_registers(a, c, unit=s)),
+        ]
+
+        # Tambah convention berdasarkan params yang terdeteksi
+        for kw in ("slave", "unit", "dev_id"):
+            if kw in params:
+                fn = lambda a, c, s, k=kw: \
+                    self._mb.read_holding_registers(a, count=c, **{k: s})
+                self._rhr_call = fn
+                log.info(f"pymodbus rhr: pakai keyword '{kw}'")
+                return
+
+        # Tidak ada keyword ditemukan — test setiap candidate
+        for label, fn in candidates:
+            try:
+                fn(0, 1, 1)   # test call; ModbusError ok, TypeError tidak
+                self._rhr_call = fn
+                log.info(f"pymodbus rhr: pakai convention '{label}'")
+                return
+            except TypeError:
+                continue
+            except Exception:
+                # Bukan TypeError → convention benar, modbus error biasa
+                self._rhr_call = fn
+                log.info(f"pymodbus rhr: pakai convention '{label}' (via modbus err)")
+                return
+
+        # Fallback terakhir: tanpa slave (pymodbus atur slave di client level)
+        log.warning("pymodbus rhr: tanpa slave kwarg — set self._mb.slave")
+        self._rhr_call = lambda a, c, s: self._rhr_no_slave(a, c, s)
+
+    def _rhr_no_slave(self, address: int, count: int, slave_id: int):
+        """Fallback: set slave di client object lalu baca."""
+        try:
+            self._mb.slave = slave_id
+        except AttributeError:
             pass
-        log.warning("Tidak bisa deteksi slave keyword, pakai positional")
-        return ""   # kosong → gunakan positional
+        return self._mb.read_holding_registers(address, count=count)
 
     def _rhr(self, address: int, count: int, slave_id: int):
-        """
-        read_holding_registers kompatibel semua versi pymodbus.
-        Keyword slave ID dideteksi otomatis saat pertama kali dipanggil.
-        """
-        if not hasattr(self, "_slave_kw"):
-            self._slave_kw = self._detect_slave_kw()
-        if self._slave_kw:
-            return self._mb.read_holding_registers(
-                address, count, **{self._slave_kw: slave_id})
-        # Fallback positional (pymodbus 3.x tertentu)
-        return self._mb.read_holding_registers(address, count, slave_id)
+        """read_holding_registers kompatibel semua versi pymodbus."""
+        if not hasattr(self, "_rhr_call"):
+            self._build_rhr()
+        return self._rhr_call(address, count, slave_id)
 
     def reconnect(self) -> bool:
         """Tutup dan buka ulang koneksi. Dipanggil dari tombol GUI."""
