@@ -7,6 +7,7 @@ Sensor yang didukung:
   - Debit : Modbus slave ID 1, holding register 0-29 (double ABCD, reg 15-18)
 """
 
+import inspect
 import random
 import struct
 import time
@@ -18,13 +19,6 @@ from config    import save_config, detect_usb_rs485
 from models    import SensorReading
 
 log = logging.getLogger(__name__)
-
-# Deteksi keyword slave/unit berdasarkan versi pymodbus
-try:
-    import pymodbus as _pm
-    _SLAVE_KW = "slave" if int(_pm.__version__.split(".")[0]) >= 3 else "unit"
-except Exception:
-    _SLAVE_KW = "slave"
 
 
 # ─── Modbus Sensor Reader ─────────────────────────────────────────────────────
@@ -81,13 +75,38 @@ class SensorReader:
             self._mb      = None
             self._port_ok = False
 
+    def _detect_slave_kw(self) -> str:
+        """
+        Deteksi nama keyword slave ID dari signature fungsi sebenarnya.
+        Kompatibel dengan semua versi pymodbus:
+          2.x  → 'unit'
+          3.0-3.x → 'slave'
+          3.x baru → bisa 'dev_id' atau nama lain
+        """
+        try:
+            params = inspect.signature(
+                self._mb.read_holding_registers).parameters
+            for kw in ("slave", "unit", "dev_id"):
+                if kw in params:
+                    log.info(f"pymodbus slave keyword: '{kw}'")
+                    return kw
+        except Exception:
+            pass
+        log.warning("Tidak bisa deteksi slave keyword, pakai positional")
+        return ""   # kosong → gunakan positional
+
     def _rhr(self, address: int, count: int, slave_id: int):
         """
-        read_holding_registers kompatibel dengan pymodbus 2.x (unit=)
-        dan pymodbus 3.x (slave=).
+        read_holding_registers kompatibel semua versi pymodbus.
+        Keyword slave ID dideteksi otomatis saat pertama kali dipanggil.
         """
-        return self._mb.read_holding_registers(
-            address, count, **{_SLAVE_KW: slave_id})
+        if not hasattr(self, "_slave_kw"):
+            self._slave_kw = self._detect_slave_kw()
+        if self._slave_kw:
+            return self._mb.read_holding_registers(
+                address, count, **{self._slave_kw: slave_id})
+        # Fallback positional (pymodbus 3.x tertentu)
+        return self._mb.read_holding_registers(address, count, slave_id)
 
     def reconnect(self) -> bool:
         """Tutup dan buka ulang koneksi. Dipanggil dari tombol GUI."""
