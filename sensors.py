@@ -19,6 +19,13 @@ from models    import SensorReading
 
 log = logging.getLogger(__name__)
 
+# Deteksi keyword slave/unit berdasarkan versi pymodbus
+try:
+    import pymodbus as _pm
+    _SLAVE_KW = "slave" if int(_pm.__version__.split(".")[0]) >= 3 else "unit"
+except Exception:
+    _SLAVE_KW = "slave"
+
 
 # ─── Modbus Sensor Reader ─────────────────────────────────────────────────────
 class SensorReader:
@@ -74,6 +81,14 @@ class SensorReader:
             self._mb      = None
             self._port_ok = False
 
+    def _rhr(self, address: int, count: int, slave_id: int):
+        """
+        read_holding_registers kompatibel dengan pymodbus 2.x (unit=)
+        dan pymodbus 3.x (slave=).
+        """
+        return self._mb.read_holding_registers(
+            address, count, **{_SLAVE_KW: slave_id})
+
     def reconnect(self) -> bool:
         """Tutup dan buka ulang koneksi. Dipanggil dari tombol GUI."""
         if self._mb:
@@ -92,7 +107,7 @@ class SensorReader:
         if self._mb is None:
             return round(random.uniform(6.0, 8.0), 2)
         try:
-            r = self._mb.read_holding_registers(0, 2, slave=self.cfg["slave_id_ph"])
+            r = self._rhr(0, 2, self.cfg["slave_id_ph"])
             if not r.isError():
                 raw = r.registers[1] / 100.0
                 return min(round(raw + self.cfg["offset_ph"], 2), 14.0)
@@ -111,7 +126,7 @@ class SensorReader:
         if self._mb is None:
             return round(random.uniform(60.0, 90.0), 2)
         try:
-            r = self._mb.read_holding_registers(0, 5, slave=self.cfg["slave_id_tss"])
+            r = self._rhr(0, 5, self.cfg["slave_id_tss"])
             if not r.isError():
                 combined = (r.registers[3] << 16) | r.registers[2]
                 tss = struct.unpack("f", struct.pack("I", combined))[0]
@@ -131,7 +146,7 @@ class SensorReader:
         if self._mb is None:
             return round(random.uniform(0.010, 0.030), 5)
         try:
-            r = self._mb.read_holding_registers(0, 30, slave=self.cfg["slave_id_debit"])
+            r = self._rhr(0, 30, self.cfg["slave_id_debit"])
             if not r.isError():
                 a, b, c, d = (r.registers[15], r.registers[16],
                               r.registers[17], r.registers[18])
