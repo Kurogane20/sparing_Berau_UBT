@@ -32,9 +32,10 @@ if TYPE_CHECKING:
 
 
 # ── Konstanta visual ──────────────────────────────────────────────────────────
-_FONT_UI   = "Segoe UI"
-_FONT_MONO = "Consolas"
-_R_WIDTH   = 270          # lebar panel kanan (px)
+_FONT_UI    = "Segoe UI"
+_FONT_MONO  = "Consolas"
+_REF_W      = 1280        # resolusi referensi (lebar)
+_REF_H      = 720         # resolusi referensi (tinggi)
 
 
 class SparingGUI:
@@ -59,9 +60,29 @@ class SparingGUI:
         self._last_card_shadow: tk.Frame = None      # diset oleh _card()
 
         self._setup_window()
+        self._calc_scale()
         self._setup_styles()
         self._build()
         self._tick_clock()
+
+    # ── Scaling ───────────────────────────────────────────────────────────────
+    def _calc_scale(self) -> None:
+        """
+        Hitung faktor skala dari resolusi layar aktual vs referensi 1280×720.
+        sc < 1 → layar kecil (misalnya 1024×600), sc > 1 → layar besar (1920×1080).
+        """
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        self._sc       = max(0.55, min(sw / _REF_W, sh / _REF_H, 1.8))
+        self._r_width  = self._sp(270)   # lebar panel kanan
+
+    def _fs(self, n: int) -> int:
+        """Skala font size — minimal 7pt."""
+        return max(7, round(n * self._sc))
+
+    def _sp(self, n: int) -> int:
+        """Skala pixel (padding, width, height) — minimal 1px."""
+        return max(1, round(n * self._sc))
 
     # ── Window ────────────────────────────────────────────────────────────────
     def _setup_window(self) -> None:
@@ -110,21 +131,22 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     def _build_header(self) -> None:
         # Top accent stripe
-        tk.Frame(self.root, bg=C["primary"], height=4).pack(fill="x")
+        tk.Frame(self.root, bg=C["primary"],
+                 height=self._sp(4)).pack(fill="x")
 
         hdr = tk.Frame(self.root, bg=C["panel"])
         hdr.pack(fill="x")
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x")
 
         row = tk.Frame(hdr, bg=C["panel"])
-        row.pack(fill="x", padx=18, pady=10)
+        row.pack(fill="x", padx=self._sp(18), pady=self._sp(5))
 
         # ── Logo ──────────────────────────────────────────────────────────────
         self._add_logo(row)
 
         # Divider
         tk.Frame(row, bg=C["border"], width=1).pack(
-            side="left", fill="y", padx=18)
+            side="left", fill="y", padx=self._sp(18))
 
         # ── Title ─────────────────────────────────────────────────────────────
         title_col = tk.Frame(row, bg=C["panel"])
@@ -133,22 +155,23 @@ class SparingGUI:
         tk.Label(title_col,
                  text="SISTEM PEMANTAUAN KUALITAS AIR",
                  bg=C["panel"], fg=C["text"],
-                 font=(_FONT_UI, 15, "bold")).pack(anchor="w")
+                 font=(_FONT_UI, self._fs(13), "bold")).pack(anchor="w")
 
         sub_row = tk.Frame(title_col, bg=C["panel"])
-        sub_row.pack(anchor="w", pady=(4, 0))
+        sub_row.pack(anchor="w", pady=(self._sp(4), 0))
         tk.Frame(sub_row, bg=C["accent"],
-                 width=22, height=2).pack(side="left",
-                                          anchor="center", padx=(0, 8))
+                 width=self._sp(22), height=2).pack(
+            side="left", anchor="center", padx=(0, self._sp(8)))
         tk.Label(sub_row,
                  text="SPARING  ●  Online Monitoring System",
                  bg=C["panel"], fg=C["accent"],
-                 font=(_FONT_UI, 9)).pack(side="left")
+                 font=(_FONT_UI, self._fs(9))).pack(side="left")
 
         # ── Connection status chips (center-right) ────────────────────────────
         conn_row = tk.Frame(row, bg=C["panel"])
-        conn_row.pack(side="left", padx=(30, 0), fill="y")
+        conn_row.pack(side="left", padx=(self._sp(30), 0), fill="y")
 
+        _dot_sz = self._sp(8)
         for key, label in [
             ("rs485",    "RS485"),
             ("internet", "Internet"),
@@ -156,23 +179,24 @@ class SparingGUI:
             ("server2",  "Server 2"),
         ]:
             chip_frame = tk.Frame(conn_row, bg=C["panel"])
-            chip_frame.pack(side="left", padx=6)
+            chip_frame.pack(side="left", padx=self._sp(6))
 
-            dot = tk.Canvas(chip_frame, width=8, height=8,
+            dot = tk.Canvas(chip_frame, width=_dot_sz, height=_dot_sz,
                             bg=C["panel"], highlightthickness=0)
-            dot.pack(side="left", padx=(0, 4), pady=2)
-            dot.create_oval(0, 0, 8, 8,
+            dot.pack(side="left", padx=(0, self._sp(4)), pady=2)
+            dot.create_oval(0, 0, _dot_sz, _dot_sz,
                             fill=C["border"], outline="", tags="dot")
 
             tk.Label(chip_frame, text=label,
                      bg=C["panel"], fg=C["text_muted"],
-                     font=(_FONT_UI, 8)).pack(side="left", pady=(0, 1))
+                     font=(_FONT_UI, self._fs(8))).pack(
+                side="left", pady=(0, 1))
 
             var = tk.StringVar(value="...")
             status_lbl = tk.Label(chip_frame, textvariable=var,
                                   bg=C["panel"], fg=C["text_muted"],
-                                  font=(_FONT_UI, 8, "bold"))
-            status_lbl.pack(side="left", padx=(2, 0))
+                                  font=(_FONT_UI, self._fs(8), "bold"))
+            status_lbl.pack(side="left", padx=(self._sp(2), 0))
 
             self._conn_dots[key]  = dot
             self._conn_chips[key] = (var, status_lbl)
@@ -180,7 +204,7 @@ class SparingGUI:
 
         # ── Clock ─────────────────────────────────────────────────────────────
         clk_frame = tk.Frame(row, bg=C["primary"],
-                             padx=16, pady=8)
+                             padx=self._sp(14), pady=self._sp(5))
         clk_frame.pack(side="right")
 
         self._date_var  = tk.StringVar()
@@ -188,15 +212,16 @@ class SparingGUI:
 
         tk.Label(clk_frame, textvariable=self._date_var,
                  bg=C["primary"], fg="#A8D0FF",
-                 font=(_FONT_UI, 8)).pack(anchor="e")
+                 font=(_FONT_UI, self._fs(8))).pack(anchor="e")
         tk.Label(clk_frame, textvariable=self._clock_var,
                  bg=C["primary"], fg="white",
-                 font=(_FONT_MONO, 22, "bold")).pack(anchor="e")
+                 font=(_FONT_MONO, self._fs(16), "bold")).pack(anchor="e")
 
     def _add_logo(self, parent) -> None:
         if HAS_PIL and Image is not None and LOGO_FILE.exists():
             try:
-                img = Image.open(LOGO_FILE).resize((118, 54), Image.LANCZOS)
+                img = Image.open(LOGO_FILE).resize(
+                    (self._sp(100), self._sp(46)), Image.LANCZOS)
                 self._logo_img = ImageTk.PhotoImage(img)
                 tk.Label(parent, image=self._logo_img,
                          bg=C["panel"]).pack(side="left")
@@ -212,7 +237,7 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     def _build_sensor_row(self) -> None:
         row = tk.Frame(self.root, bg=C["bg"])
-        row.pack(fill="x", padx=14, pady=(10, 0))
+        row.pack(fill="x", padx=self._sp(14), pady=(self._sp(6), 0))
 
         defs = [
             # key     label    unit    bg_color       label_color
@@ -242,36 +267,39 @@ class SparingGUI:
         # Parameter label
         tk.Label(card, text=label,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, 10, "bold")).pack(pady=(12, 0))
+                 font=(_FONT_UI, self._fs(9), "bold")).pack(
+            pady=(self._sp(6), 0))
 
         # ── Raw value — large, always visible ────────────────────────────────
         raw_var = tk.StringVar(value="—")
         self._sensor_vars[key] = raw_var
         tk.Label(card, textvariable=raw_var,
                  bg=bg, fg="white",
-                 font=(_FONT_MONO, 38, "bold")).pack(pady=(2, 0))
+                 font=(_FONT_MONO, self._fs(26), "bold")).pack(
+            pady=(self._sp(1), 0))
 
         tk.Label(card, text=unit,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, 9)).pack()
+                 font=(_FONT_UI, self._fs(8))).pack()
 
         # ── Separator ─────────────────────────────────────────────────────────
         tk.Frame(card, bg=label_color, height=1).pack(
-            fill="x", padx=20, pady=(8, 4))
+            fill="x", padx=self._sp(20),
+            pady=(self._sp(4), self._sp(2)))
 
         # ── Processed value — smaller, masked when locked ─────────────────────
         proc_row = tk.Frame(card, bg=bg)
-        proc_row.pack(pady=(0, 12))
+        proc_row.pack(pady=(0, self._sp(6)))
 
         tk.Label(proc_row, text="PROCESSED",
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, 7, "bold")).pack()
+                 font=(_FONT_UI, self._fs(7), "bold")).pack()
 
         proc_var = tk.StringVar(value="●  ●  ●")
         self._proc_vars[key] = proc_var
         tk.Label(proc_row, textvariable=proc_var,
                  bg=bg, fg=label_color,
-                 font=(_FONT_MONO, 20, "bold")).pack()
+                 font=(_FONT_MONO, self._fs(14), "bold")).pack()
 
         return shadow
 
@@ -280,7 +308,8 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     def _build_body(self) -> None:
         body = tk.Frame(self.root, bg=C["bg"])
-        body.pack(fill="both", expand=True, padx=14, pady=10)
+        body.pack(fill="both", expand=True,
+                  padx=self._sp(14), pady=self._sp(6))
 
         self._build_log_panel(body)
         self._build_right_panel(body)
@@ -301,8 +330,8 @@ class SparingGUI:
             side="left", fill="y")
         tk.Label(title_bar, text="LOG AKTIVITAS",
                  bg=C["card"], fg=C["accent"],
-                 font=(_FONT_UI, 9, "bold"),
-                 padx=10, pady=8).pack(side="left")
+                 font=(_FONT_UI, self._fs(9), "bold"),
+                 padx=self._sp(10), pady=self._sp(8)).pack(side="left")
         tk.Frame(title_bar, bg=C["border"], height=1).pack(
             side="bottom", fill="x")
 
@@ -313,7 +342,7 @@ class SparingGUI:
         sb = ttk.Scrollbar(log_frame, orient="vertical")
         self._log_txt = tk.Text(
             log_frame, state="disabled",
-            font=(_FONT_MONO, 9),
+            font=(_FONT_MONO, self._fs(8)),
             bg=C["log_bg"], fg=C["log_fg"],
             relief="flat", padx=12, pady=10,
             wrap="word",
@@ -335,7 +364,7 @@ class SparingGUI:
 
     # ── Right panel ───────────────────────────────────────────────────────────
     def _build_right_panel(self, parent: tk.Frame) -> None:
-        right = tk.Frame(parent, bg=C["bg"], width=_R_WIDTH)
+        right = tk.Frame(parent, bg=C["bg"], width=self._r_width)
         right.pack(side="right", fill="y")
         right.pack_propagate(False)
 
@@ -367,16 +396,16 @@ class SparingGUI:
         self._send_status_lbl = tk.Label(
             inner2, textvariable=self._send_status_var,
             bg=C["card"], fg=C["text_muted"],
-            font=(_FONT_UI, 11, "bold"),
-            wraplength=_R_WIDTH - 28, justify="left",
+            font=(_FONT_UI, self._fs(11), "bold"),
+            wraplength=self._r_width - self._sp(28), justify="left",
         )
-        self._send_status_lbl.pack(anchor="w", pady=(2, 0))
+        self._send_status_lbl.pack(anchor="w", pady=(self._sp(2), 0))
 
         self._send_detail_var = tk.StringVar(value="")
         tk.Label(inner2, textvariable=self._send_detail_var,
                  bg=C["card"], fg=C["text_muted"],
-                 font=(_FONT_UI, 8),
-                 wraplength=_R_WIDTH - 28,
+                 font=(_FONT_UI, self._fs(8)),
+                 wraplength=self._r_width - self._sp(28),
                  justify="left").pack(anchor="w", pady=(3, 2))
 
         # ── Batas data server 2 — tersembunyi sampai unlock ──────────────────
@@ -425,15 +454,16 @@ class SparingGUI:
                                 fill="x", pady=(0, 8))
 
         port_row = tk.Frame(ctrl_inner, bg=C["card"])
-        port_row.pack(fill="x", pady=(0, 6))
+        port_row.pack(fill="x", pady=(0, self._sp(6)))
         tk.Label(port_row, text="Port aktif :",
                  bg=C["card"], fg=C["text_muted"],
-                 font=(_FONT_UI, 9)).pack(side="left")
+                 font=(_FONT_UI, self._fs(9))).pack(side="left")
         self._port_var = tk.StringVar(
             value=self.cfg.get("serial_port", "—"))
         tk.Label(port_row, textvariable=self._port_var,
                  bg=C["card"], fg=C["primary"],
-                 font=(_FONT_MONO, 9, "bold")).pack(side="left", padx=(6, 0))
+                 font=(_FONT_MONO, self._fs(9), "bold")).pack(
+            side="left", padx=(self._sp(6), 0))
 
         btn_row = tk.Frame(ctrl_inner, bg=C["card"])
         btn_row.pack(fill="x")
@@ -462,17 +492,19 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     def _build_footer(self) -> None:
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x")
-        bar = tk.Frame(self.root, bg=C["panel"], height=26)
+        bar = tk.Frame(self.root, bg=C["panel"], height=self._sp(22))
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
 
         # Left indicator strip
-        tk.Frame(bar, bg=C["primary"], width=3).pack(side="left", fill="y")
+        tk.Frame(bar, bg=C["primary"],
+                 width=self._sp(3)).pack(side="left", fill="y")
 
         self._statusbar_var = tk.StringVar(value="Siap")
         tk.Label(bar, textvariable=self._statusbar_var,
                  bg=C["panel"], fg=C["text_muted"],
-                 font=(_FONT_UI, 9)).pack(side="left", padx=10)
+                 font=(_FONT_UI, self._fs(9))).pack(
+            side="left", padx=self._sp(10))
 
         self._flat_btn(bar, "⛶  F11",
                        self._toggle_fullscreen,
@@ -483,7 +515,7 @@ class SparingGUI:
         self._lock_btn_var = tk.StringVar(value="🔒")
         lck = tk.Label(bar, textvariable=self._lock_btn_var,
                        bg=C["panel"], fg=C["border"],
-                       font=(_FONT_UI, 13),
+                       font=(_FONT_UI, self._fs(13)),
                        cursor="hand2")
         lck.pack(side="right", padx=(0, 2), pady=2)
         lck.bind("<Button-1>", lambda e: self._show_lock_dialog())
@@ -493,7 +525,8 @@ class SparingGUI:
         tk.Label(bar,
                  text=f"Mode: {mode}  ·  Port: {port}  ·  {SYS_PLATFORM}  ·  ESC = keluar fullscreen",
                  bg=C["panel"], fg=C["text_muted"],
-                 font=(_FONT_UI, 8)).pack(side="right", padx=12)
+                 font=(_FONT_UI, self._fs(8))).pack(
+            side="right", padx=self._sp(12))
 
     # ═══════════════════════════════════════════════════════════════════════════
     # WIDGET HELPERS
@@ -515,7 +548,8 @@ class SparingGUI:
         outer.pack(fill="both", expand=True)
 
         # Left color bar
-        tk.Frame(outer, bg=accent, width=4).pack(side="left", fill="y")
+        tk.Frame(outer, bg=accent,
+                 width=self._sp(4)).pack(side="left", fill="y")
 
         body = tk.Frame(outer, bg=C["card"])
         body.pack(side="left", fill="both", expand=True)
@@ -523,31 +557,32 @@ class SparingGUI:
         # Title row
         tk.Label(body, text=title,
                  bg=C["card"], fg=accent,
-                 font=(_FONT_UI, 8, "bold"),
-                 padx=10, pady=7).pack(anchor="w")
+                 font=(_FONT_UI, self._fs(8), "bold"),
+                 padx=self._sp(10), pady=self._sp(7)).pack(anchor="w")
 
         tk.Frame(body, bg=C["border"], height=1).pack(fill="x")
 
         # Content frame
         content = tk.Frame(body, bg=C["card"])
-        content.pack(fill="both", expand=True, padx=10, pady=8)
+        content.pack(fill="both", expand=True,
+                     padx=self._sp(10), pady=self._sp(8))
         return content
 
     def _info_row(self, parent, label: str, var: tk.StringVar,
                   fg: str, suffix: str = "") -> None:
         row = tk.Frame(parent, bg=C["card"])
-        row.pack(fill="x", pady=3)
+        row.pack(fill="x", pady=self._sp(3))
         tk.Label(row, text=label,
                  bg=C["card"], fg=C["text_muted"],
-                 font=(_FONT_UI, 8, "bold"),
+                 font=(_FONT_UI, self._fs(8), "bold"),
                  anchor="w", width=15).pack(side="left")
         tk.Label(row, textvariable=var,
                  bg=C["card"], fg=fg,
-                 font=(_FONT_MONO, 10, "bold")).pack(side="left")
+                 font=(_FONT_MONO, self._fs(10), "bold")).pack(side="left")
         if suffix:
             tk.Label(row, text=suffix,
                      bg=C["card"], fg=C["text_muted"],
-                     font=(_FONT_UI, 9)).pack(side="left")
+                     font=(_FONT_UI, self._fs(9))).pack(side="left")
 
     def _flat_btn(self, parent, text: str, cmd,
                   bg: str, fg: str,
@@ -556,8 +591,8 @@ class SparingGUI:
         kw = dict(
             text=text, command=cmd,
             bg=bg, fg=fg,
-            font=(_FONT_UI, 9, "bold"),
-            relief="flat", cursor="hand2", pady=pady,
+            font=(_FONT_UI, self._fs(9), "bold"),
+            relief="flat", cursor="hand2", pady=self._sp(pady),
             activebackground=C["accent"],
             activeforeground="white",
         )
@@ -582,24 +617,26 @@ class SparingGUI:
 
         # Posisikan di tengah layar
         win.update_idletasks()
-        w, h = 320, 200
+        w, h = self._sp(320), self._sp(200)
         sx = self.root.winfo_screenwidth()
         sy = self.root.winfo_screenheight()
         win.geometry(f"{w}x{h}+{(sx-w)//2}+{(sy-h)//2}")
 
-        tk.Frame(win, bg=C["primary"], height=4).pack(fill="x")
+        tk.Frame(win, bg=C["primary"], height=self._sp(4)).pack(fill="x")
 
         tk.Label(win, text="🔒  Masukkan PIN",
                  bg=C["panel"], fg=C["text"],
-                 font=(_FONT_UI, 12, "bold")).pack(pady=(20, 8))
+                 font=(_FONT_UI, self._fs(12), "bold")).pack(
+            pady=(self._sp(20), self._sp(8)))
 
         tk.Label(win, text="PIN diperlukan untuk melihat data processed & batas",
                  bg=C["panel"], fg=C["text_muted"],
-                 font=(_FONT_UI, 8)).pack(pady=(0, 12))
+                 font=(_FONT_UI, self._fs(8))).pack(
+            pady=(0, self._sp(12)))
 
         pin_var = tk.StringVar()
         entry = tk.Entry(win, textvariable=pin_var,
-                         show="●", font=(_FONT_MONO, 16),
+                         show="●", font=(_FONT_MONO, self._fs(16)),
                          width=10, justify="center",
                          relief="flat", bd=0,
                          bg=C["bg"], fg=C["text"],
@@ -607,13 +644,13 @@ class SparingGUI:
                          highlightthickness=2,
                          highlightbackground=C["border"],
                          highlightcolor=C["primary"])
-        entry.pack(ipady=6)
+        entry.pack(ipady=self._sp(6))
         entry.focus_set()
 
         err_var = tk.StringVar(value="")
         tk.Label(win, textvariable=err_var,
                  bg=C["panel"], fg=C["offline"],
-                 font=(_FONT_UI, 9)).pack(pady=(6, 0))
+                 font=(_FONT_UI, self._fs(9))).pack(pady=(self._sp(6), 0))
 
         def _try_unlock(event=None):
             correct = str(self.cfg.get("secret_pin", "1234"))
@@ -627,13 +664,14 @@ class SparingGUI:
         entry.bind("<Return>", _try_unlock)
 
         btn_row = tk.Frame(win, bg=C["panel"])
-        btn_row.pack(pady=(8, 0))
+        btn_row.pack(pady=(self._sp(8), 0))
         self._flat_btn(btn_row, "Buka", _try_unlock,
                        C["primary"], "white", pady=6).pack(
-            side="left", padx=(0, 6), ipadx=12)
+            side="left", padx=(0, self._sp(6)),
+            ipadx=self._sp(12))
         self._flat_btn(btn_row, "Batal", win.destroy,
                        C["bg"], C["text_muted"], pady=6).pack(
-            side="left", ipadx=12)
+            side="left", ipadx=self._sp(12))
 
     def _unlock(self) -> None:
         """Tampilkan processed values dan limits card."""
@@ -794,32 +832,35 @@ class SparingGUI:
         win = tk.Toplevel(self.root)
         win.title("Scan Port USB RS485")
         win.configure(bg=C["bg"])
-        win.geometry("460x360")
+        win.geometry(f"{self._sp(460)}x{self._sp(360)}")
         win.grab_set()
 
-        tk.Frame(win, bg=C["primary"], height=4).pack(fill="x")
+        tk.Frame(win, bg=C["primary"],
+                 height=self._sp(4)).pack(fill="x")
 
         title_bar = tk.Frame(win, bg=C["panel"])
         title_bar.pack(fill="x")
         tk.Label(title_bar, text="PORT SERIAL TERSEDIA",
                  bg=C["panel"], fg=C["text"],
-                 font=(_FONT_UI, 11, "bold"),
-                 padx=16, pady=10).pack(side="left")
+                 font=(_FONT_UI, self._fs(11), "bold"),
+                 padx=self._sp(16), pady=self._sp(10)).pack(side="left")
         tk.Frame(win, bg=C["border"], height=1).pack(fill="x")
 
-        body = tk.Frame(win, bg=C["bg"], padx=16, pady=12)
+        body = tk.Frame(win, bg=C["bg"],
+                        padx=self._sp(16), pady=self._sp(12))
         body.pack(fill="both", expand=True)
 
         tk.Label(body, text="Pilih port USB RS485 Anda:",
                  bg=C["bg"], fg=C["text_muted"],
-                 font=(_FONT_UI, 9, "bold")).pack(anchor="w", pady=(0, 6))
+                 font=(_FONT_UI, self._fs(9), "bold")).pack(
+            anchor="w", pady=(0, self._sp(6)))
 
         list_shadow = tk.Frame(body, bg=C["shadow"], padx=1, pady=1)
         list_shadow.pack(fill="both", expand=True)
 
         listbox = tk.Listbox(
             list_shadow,
-            font=(_FONT_MONO, 11),
+            font=(_FONT_MONO, self._fs(11)),
             bg=C["card"], fg=C["text"],
             selectbackground=C["primary"],
             selectforeground="white",
@@ -831,7 +872,8 @@ class SparingGUI:
         info_var = tk.StringVar(value="")
         tk.Label(body, textvariable=info_var,
                  bg=C["bg"], fg=C["text_muted"],
-                 font=(_FONT_UI, 8)).pack(anchor="w", pady=(6, 0))
+                 font=(_FONT_UI, self._fs(8))).pack(
+            anchor="w", pady=(self._sp(6), 0))
 
         def _refresh():
             listbox.delete(0, "end")
@@ -861,7 +903,8 @@ class SparingGUI:
         _refresh()
 
         tk.Frame(win, bg=C["border"], height=1).pack(fill="x")
-        btn_bar = tk.Frame(win, bg=C["panel"], padx=12, pady=8)
+        btn_bar = tk.Frame(win, bg=C["panel"],
+                           padx=self._sp(12), pady=self._sp(8))
         btn_bar.pack(fill="x")
 
         for text, cmd, bg, fg in [
@@ -877,17 +920,18 @@ class SparingGUI:
         win = tk.Toplevel(self.root)
         win.title("Pengaturan")
         win.configure(bg=C["bg"])
-        win.geometry("600x540")
+        win.geometry(f"{self._sp(600)}x{self._sp(540)}")
         win.grab_set()
 
-        tk.Frame(win, bg=C["primary"], height=4).pack(fill="x")
+        tk.Frame(win, bg=C["primary"],
+                 height=self._sp(4)).pack(fill="x")
 
         title_bar = tk.Frame(win, bg=C["panel"])
         title_bar.pack(fill="x")
         tk.Label(title_bar, text="PENGATURAN KONEKSI & PERANGKAT",
                  bg=C["panel"], fg=C["text"],
-                 font=(_FONT_UI, 12, "bold"),
-                 padx=16, pady=10).pack(side="left")
+                 font=(_FONT_UI, self._fs(12), "bold"),
+                 padx=self._sp(16), pady=self._sp(10)).pack(side="left")
         tk.Frame(win, bg=C["border"], height=1).pack(fill="x")
 
         canvas  = tk.Canvas(win, bg=C["bg"], highlightthickness=0)
@@ -897,7 +941,8 @@ class SparingGUI:
         sb.pack(side="right", fill="y")
         canvas.pack(fill="both", expand=True)
 
-        form    = tk.Frame(canvas, bg=C["bg"], padx=20, pady=12)
+        form    = tk.Frame(canvas, bg=C["bg"],
+                           padx=self._sp(20), pady=self._sp(12))
         cwin_id = canvas.create_window((0, 0), window=form, anchor="nw")
         canvas.bind("<Configure>",
                     lambda e: canvas.itemconfig(cwin_id, width=e.width))
@@ -912,24 +957,24 @@ class SparingGUI:
             if row_i[0] > 0:
                 tk.Frame(form, bg=C["border"], height=1).grid(
                     row=row_i[0], column=0, columnspan=3,
-                    sticky="ew", pady=(14, 6))
+                    sticky="ew", pady=(self._sp(14), self._sp(6)))
                 row_i[0] += 1
             tk.Label(form, text=title,
                      bg=C["bg"], fg=C["primary"],
-                     font=(_FONT_UI, 10, "bold")).grid(
+                     font=(_FONT_UI, self._fs(10), "bold")).grid(
                 row=row_i[0], column=0, columnspan=3,
-                sticky="w", pady=(0, 6))
+                sticky="w", pady=(0, self._sp(6)))
             row_i[0] += 1
 
         def _entry(label: str, key: str, width: int = 32) -> None:
             tk.Label(form, text=label,
                      bg=C["bg"], fg=C["text"],
-                     font=(_FONT_UI, 10), anchor="w").grid(
-                row=row_i[0], column=0, sticky="w", pady=3)
+                     font=(_FONT_UI, self._fs(10)), anchor="w").grid(
+                row=row_i[0], column=0, sticky="w", pady=self._sp(3))
             v = tk.StringVar(value=str(self.cfg.get(key, "")))
             entry_vars[key] = v
             e = tk.Entry(form, textvariable=v,
-                         font=(_FONT_UI, 10), width=width,
+                         font=(_FONT_UI, self._fs(10)), width=width,
                          relief="flat", bd=0,
                          bg=C["card"], fg=C["text"],
                          insertbackground=C["primary"],
@@ -952,13 +997,13 @@ class SparingGUI:
         ports_list = scan_serial_ports() or [self.cfg.get("serial_port", "")]
         port_combo = ttk.Combobox(form, textvariable=port_var,
                                   values=ports_list, width=22,
-                                  font=(_FONT_MONO, 10))
+                                  font=(_FONT_MONO, self._fs(10)))
         port_combo.grid(row=row_i[0], column=1, sticky="ew",
                         padx=(10, 4), pady=4)
 
         info_lbl = tk.Label(form, text="",
                             bg=C["bg"], fg=C["online"],
-                            font=(_FONT_UI, 8), anchor="w")
+                            font=(_FONT_UI, self._fs(8)), anchor="w")
 
         def _refresh_ports():
             nl = scan_serial_ports()
@@ -986,7 +1031,7 @@ class SparingGUI:
                      values=["1200","2400","4800","9600","19200",
                              "38400","57600","115200"],
                      width=10,
-                     font=(_FONT_MONO, 10)).grid(
+                     font=(_FONT_MONO, self._fs(10))).grid(
             row=row_i[0], column=1, sticky="w",
             padx=(10, 0), pady=4)
         row_i[0] += 1
@@ -1027,7 +1072,7 @@ class SparingGUI:
         for col, txt in enumerate(["Parameter", "Min", "Max"]):
             tk.Label(form, text=txt,
                      bg=C["bg"], fg=C["text_muted"],
-                     font=(_FONT_UI, 9, "bold")).grid(
+                     font=(_FONT_UI, self._fs(9), "bold")).grid(
                 row=row_i[0], column=col, sticky="w",
                 padx=(0 if col == 0 else 10, 0), pady=2)
         row_i[0] += 1
@@ -1043,13 +1088,14 @@ class SparingGUI:
         ]:
             tk.Label(form, text=param,
                      bg=C["bg"], fg=C["text"],
-                     font=(_FONT_UI, 10)).grid(
-                row=row_i[0], column=0, sticky="w", pady=4)
+                     font=(_FONT_UI, self._fs(10))).grid(
+                row=row_i[0], column=0, sticky="w",
+                pady=self._sp(4))
             for col, key in enumerate([key_min, key_max], start=1):
                 v = tk.StringVar(value=str(self.cfg.get(key, "")))
                 entry_vars[key] = v
                 tk.Entry(form, textvariable=v,
-                         font=(_FONT_MONO, 10), width=10,
+                         font=(_FONT_MONO, self._fs(10)), width=10,
                          relief="flat", bd=0,
                          bg=C["card"], fg=C["text"],
                          insertbackground=C["primary"],
@@ -1101,7 +1147,7 @@ class SparingGUI:
 
         self._flat_btn(btn_fr, "✓  Simpan & Hubungkan",
                        _save, C["primary"], "white",
-                       pady=9).pack(side="left", padx=(0, 8))
+                       pady=9).pack(side="left", padx=(0, self._sp(8)))
         self._flat_btn(btn_fr, "✕  Batal",
                        win.destroy, C["bg"], C["text_muted"],
                        pady=9).pack(side="left")
