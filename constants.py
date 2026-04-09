@@ -59,24 +59,44 @@ try:
 except ImportError:
     log.warning("Pillow tidak tersedia — logo tidak ditampilkan")
 
-# ─── Sucofindo Color Theme ─────────────────────────────────────────────────────
-# Biru primary    #0077C8 — warna globe utama logo
-# Biru tua        #003087 — latar header
-# Biru muda       #00AEEF — aksen ringan
-# Hijau-teal      #009B77 — warna centang logo (status "terhubung")
+# ─── Sucofindo Color Theme — Professional Dashboard ───────────────────────────
 C: dict = {
-    "primary":      "#0077C8",
-    "primary_dark": "#003087",
-    "light_blue":   "#00AEEF",
-    "teal":         "#009B77",
-    "red":          "#DC3545",
-    "bg":           "#EBF3FB",
-    "card":         "#FFFFFF",
-    "text":         "#1A1A2E",
-    "text_muted":   "#5A6A7A",
-    "border":       "#C0D4E8",
-    "log_bg":       "#0D1B2A",
-    "log_fg":       "#A8D8F0",
+    # Brand
+    "primary":      "#0052CC",   # Sucofindo electric blue
+    "primary_dark": "#003087",   # Sucofindo dark blue
+    "accent":       "#0091D5",   # Ocean blue accent
+
+    # Sensor card backgrounds (solid color)
+    "s_ph":         "#0052CC",   # pH  — electric blue
+    "s_tss":        "#0091D5",   # TSS — ocean blue
+    "s_debit":      "#00897B",   # Debit — teal emerald
+
+    # Status
+    "online":       "#00A878",   # Connected / success
+    "offline":      "#E53935",   # Error / disconnected
+    "warning":      "#F59E0B",   # Partial / warning
+
+    # Page & components
+    "bg":           "#EFF3FB",   # Page background
+    "panel":        "#FFFFFF",   # Header / panel
+    "card":         "#FFFFFF",   # Card background
+    "card_alt":     "#F7FAFF",   # Alternate card (slightly blue-tinted)
+    "shadow":       "#D4E0F5",   # Card shadow simulation
+
+    # Text
+    "text":         "#0D1F3C",   # Primary text (very dark navy)
+    "text_muted":   "#5A6E94",   # Secondary text
+
+    # Misc
+    "border":       "#DDE8F5",   # Borders & dividers
+    "progress":     "#0052CC",   # Progress bar fill
+    "log_bg":       "#081525",   # Terminal background
+    "log_fg":       "#4FC3F7",   # Terminal text
+
+    # Aliases kept for backward compat with any remaining references
+    "teal":         "#00A878",
+    "red":          "#E53935",
+    "orange":       "#F59E0B",
 }
 
 # ─── Path logo ────────────────────────────────────────────────────────────────

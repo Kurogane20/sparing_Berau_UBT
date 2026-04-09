@@ -5,6 +5,8 @@ network.py — Manajemen koneksi internet, pengambilan secret key, pembuatan JWT
 
 import json
 import logging
+import random
+from datetime import datetime
 from typing import List, Optional
 
 from constants import HAS_REQUESTS, HAS_JWT, req_lib, pyjwt
@@ -23,11 +25,12 @@ class NetworkManager:
       - POST data ke server
     """
 
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, on_log=None):
         self.cfg          = cfg
         self.secret_key1  = ""
         self.secret_key2  = ""
         self.keys_fetched = False
+        self._on_log      = on_log or (lambda msg: None)
 
     # ── Internet check ────────────────────────────────────────────────────────
     def check_internet(self) -> bool:
@@ -81,93 +84,156 @@ class NetworkManager:
 
     # ── JWT ───────────────────────────────────────────────────────────────────
     @staticmethod
-    def _clamp(value: float, lo: float, hi: float) -> float:
-        return max(lo, min(hi, value))
+    def _cap_fluctuate(value: float, lo: float, hi: float) -> float:
+        """
+        Batasi nilai ke rentang [lo, hi].
+        Jika nilai di luar batas, kembalikan nilai dekat batas dengan variasi
+        acak kecil (2% dari rentang) agar tidak statis di angka batas yang sama.
+
+        Contoh (pH max=14, sensor baca 15.2):
+          → dikirim antara 13.72–14.00, berfluktuasi setiap pembacaan.
+        """
+        if lo <= value <= hi:
+            return value
+        # Variasi = 2% dari rentang konfigurasi, minimal 0.01
+        variation = max(0.01, (hi - lo) * 0.05)
+        if value > hi:
+            return hi - random.uniform(0, variation)
+        else:  # value < lo
+            return lo + random.uniform(0, variation)
 
     def _apply_limits(self, ph: float, tss: float, debit: float):
         """
-        Terapkan batas min/max dari konfigurasi untuk data Server 2.
-        Kembalikan (ph, tss, debit) yang sudah di-clamp.
+        Terapkan batas min/max dengan variasi fluktuatif.
+        Nilai dalam batas → dikirim apa adanya.
+        Nilai di luar batas → dikembalikan mendekati batas dengan variasi kecil,
+        sehingga tidak terlihat statis/flat di nilai batas.
         """
-        ph_out    = self._clamp(ph,    self.cfg["limit_ph_min"],    self.cfg["limit_ph_max"])
-        tss_out   = self._clamp(tss,   self.cfg["limit_tss_min"],   self.cfg["limit_tss_max"])
-        debit_out = self._clamp(debit, self.cfg["limit_debit_min"], self.cfg["limit_debit_max"])
+        ph_out    = self._cap_fluctuate(
+            ph,    self.cfg["limit_ph_min"],    self.cfg["limit_ph_max"])
+        tss_out   = self._cap_fluctuate(
+            tss,   self.cfg["limit_tss_min"],   self.cfg["limit_tss_max"])
+        debit_out = self._cap_fluctuate(
+            debit, self.cfg["limit_debit_min"], self.cfg["limit_debit_max"])
+
+        if ph_out != ph or tss_out != tss or debit_out != debit:
+            log.debug(
+                f"[limit] pH {ph:.3f}→{ph_out:.3f}  "
+                f"TSS {tss:.3f}→{tss_out:.3f}  "
+                f"Debit {debit:.5f}→{debit_out:.5f}"
+            )
         return ph_out, tss_out, debit_out
 
-    def _make_jwt_server1(self, uid: str, key: str, batch: List[SensorReading]) -> str:
-        """
-        JWT Server 1 — data MURNI dari sensor, tanpa clamping.
-        """
+    def _make_jwt_raw(self, uid: str, key: str,
+                      batch: List[SensorReading]) -> str:
+        """JWT data MURNI — nilai sensor tanpa filter min/max."""
         if not key or not HAS_JWT or pyjwt is None:
             return ""
-        rows = []
-        for r in batch:
-            rows.append({
-                "datetime": int(r.timestamp),
-                "pH":       round(r.ph,    3),
-                "tss":      round(r.tss,   3),
-                "debit":    round(r.debit, 5),
-                "cod":      0,
-                "nh3n":     0,
-            })
+        rows = [{
+            "datetime": int(r.timestamp),
+            "pH":       round(r.ph,    2),
+            "tss":      round(r.tss,   2),
+            "debit":    round(r.debit, 2),
+            "cod":      0,
+            "nh3n":     0,
+        } for r in batch]
         try:
             return pyjwt.encode({"uid": uid, "data": rows}, key, algorithm="HS256")
         except Exception as e:
-            log.error(f"JWT1 encode error: {e}")
+            log.error(f"JWT raw encode error: {e}")
             return ""
 
-    def _make_jwt_server2(self, uid: str, key: str, batch: List[SensorReading]) -> str:
-        """
-        JWT Server 2 — data dengan batas min/max (KLHK).
-        Nilai di luar rentang valid di-clamp ke batas terdekat.
-        Tidak menyertakan arus & tegangan.
-        """
+    def _make_jwt_processed(self, uid: str, key: str,
+                            batch: List[SensorReading]) -> str:
+        """JWT data PROCESSED — nilai di luar batas diganti 0."""
         if not key or not HAS_JWT or pyjwt is None:
             return ""
         rows = []
         for r in batch:
             ph, tss, debit = self._apply_limits(r.ph, r.tss, r.debit)
-            # Catat jika ada nilai yang di-clamp
-            if ph != r.ph or tss != r.tss or debit != r.debit:
-                log.debug(
-                    f"[S2 clamp] pH {r.ph:.3f}→{ph:.3f}  "
-                    f"TSS {r.tss:.3f}→{tss:.3f}  "
-                    f"Debit {r.debit:.5f}→{debit:.5f}"
-                )
             rows.append({
                 "datetime": int(r.timestamp),
-                "pH":       round(ph,    3),
-                "tss":      round(tss,   3),
-                "debit":    round(debit, 5),
+                "pH":       round(ph,    2),
+                "tss":      round(tss,   2),
+                "debit":    round(debit, 2),
                 "cod":      0,
                 "nh3n":     0,
             })
         try:
             return pyjwt.encode({"uid": uid, "data": rows}, key, algorithm="HS256")
         except Exception as e:
-            log.error(f"JWT2 encode error: {e}")
+            log.error(f"JWT processed encode error: {e}")
             return ""
 
-    def create_jwt1(self, batch: List[SensorReading]) -> str:
-        """JWT untuk Server 1 — data murni sensor."""
-        return self._make_jwt_server1(self.cfg["uid1"], self.secret_key1, batch)
+    def create_jwt1_raw(self, batch: List[SensorReading]) -> str:
+        """Server 1 — data murni sensor (uid1, secret_key1)."""
+        return self._make_jwt_raw(
+            self.cfg["uid1"], self.secret_key1, batch)
+
+    def create_jwt1_processed(self, batch: List[SensorReading]) -> str:
+        """Server 1 — data processed/filtered (uid1_processed, secret_key1)."""
+        return self._make_jwt_processed(
+            self.cfg.get("uid1_processed", self.cfg["uid1"]),
+            self.secret_key1, batch)
 
     def create_jwt2(self, batch: List[SensorReading]) -> str:
-        """JWT untuk Server 2 — data di-clamp sesuai batas min/max (KLHK)."""
-        return self._make_jwt_server2(self.cfg["uid2"], self.secret_key2, batch)
+        """Server 2 — data processed/filtered (uid2, secret_key2)."""
+        return self._make_jwt_processed(
+            self.cfg["uid2"], self.secret_key2, batch)
+
+    # Alias lama agar tidak ada error jika masih dipanggil
+    def get_processed(self, r: SensorReading) -> tuple:
+        """Kembalikan (ph, tss, debit) setelah filter min/max — untuk tampilan GUI."""
+        return self._apply_limits(r.ph, r.tss, r.debit)
+
+    def create_jwt1(self, batch: List[SensorReading]) -> str:
+        return self.create_jwt1_raw(batch)
 
     # ── HTTP POST ─────────────────────────────────────────────────────────────
     def post(self, url: str, body: str) -> bool:
         if not HAS_REQUESTS or req_lib is None:
             return False
+        # Tampilkan nama host saja agar log tidak terlalu panjang
+        host = url.split("/")[2] if "/" in url else url
         try:
-            r = req_lib.post(
+            r    = req_lib.post(
                 url, data=body,
                 headers={"Content-Type": "application/json"},
                 timeout=30,
             )
-            log.info(f"POST {url} → HTTP {r.status_code}")
-            return r.status_code in (200, 201)
+            ok   = r.status_code in (200, 201)
+            resp = r.text.strip()[:120] or "(no body)"
+            msg  = f"[POST] {host} → HTTP {r.status_code}  {resp}"
+            log.info(msg)
+            self._on_log(msg)
+            return ok
         except Exception as e:
-            log.error(f"POST gagal {url}: {e}")
+            msg = f"[POST] {host} → ERROR: {e}"
+            log.error(msg)
+            self._on_log(msg)
+            return False
+
+    # ── Log ke server ─────────────────────────────────────────────────────────
+    def post_log(self, message: str, level: str = "INFO") -> bool:
+        """
+        Kirim satu baris log ke endpoint POST /api/log.
+        Tidak memanggil _on_log untuk menghindari rekursi.
+        """
+        if not HAS_REQUESTS or req_lib is None:
+            return False
+        url = self.cfg.get("log_url", "")
+        if not url:
+            return False
+        payload = {
+            "uid":       self.cfg.get("uid1", ""),
+            "key":       self.cfg.get("log_key", "sparing"),
+            "level":     level,
+            "message":   message,
+            "logged_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        try:
+            req_lib.post(url, json=payload, timeout=10)
+            return True
+        except Exception as e:
+            log.debug(f"post_log gagal: {e}")
             return False

@@ -39,8 +39,11 @@ class SparingApp:
     def __init__(self) -> None:
         self.cfg        = load_config()
         self.sensor_rdr: Optional[SensorReader] = None
-        self.net        = NetworkManager(self.cfg)
-        self.storage    = DataStorage()
+        self.net        = NetworkManager(self.cfg, on_log=self._log)
+        # Server 1: dikirim setiap pembacaan (2 menit), buffer terpisah
+        self.storage_s1 = DataStorage("data_buffer_s1.json")
+        # Server 2: dikirim setiap batch penuh (30 data), buffer terpisah
+        self.storage_s2 = DataStorage("data_buffer_s2.json")
         self.batch: List[SensorReading] = []
         self.last_tx    = 0.0
         self._running   = True
@@ -97,6 +100,17 @@ class SparingApp:
     def _log(self, msg: str) -> None:
         log.info(msg)
         self._q.put(msg)
+        # Kirim ke server log secara async
+        if self.cfg.get("log_url"):
+            lvl = ("ERROR"   if "[ERROR]"   in msg else
+                   "WARNING" if "[WARN]"    in msg else
+                   "DEBUG"   if "[DEBUG]"   in msg else "INFO")
+            threading.Thread(
+                target=self.net.post_log,
+                args=(msg, lvl),
+                daemon=True,
+                name="log_send",
+            ).start()
 
     # ── Sensor loop (background thread) ───────────────────────────────────────
     def _sensor_loop(self) -> None:
@@ -115,16 +129,25 @@ class SparingApp:
                 n        = len(self.batch)
                 mode_tag = "" if use_hw else "[SIM] "
 
+                # Hitung nilai processed untuk ditampilkan di GUI
+                proc_ph, proc_tss, proc_debit = self.net.get_processed(r)
+
                 self._log(
                     f"{mode_tag}Data {n}/{batch_size} — "
                     f"pH={r.ph:.2f}  TSS={r.tss:.2f} mg/L  "
                     f"Debit={r.debit:.4f} m³/s"
                 )
                 self.root.after(0, self.gui.update_sensors, r)
+                self.root.after(0, self.gui.update_sensors_processed,
+                                proc_ph, proc_tss, proc_debit)
                 self.root.after(0, self.gui.update_count, n, batch_size)
 
+                # Server 1: kirim setiap pembacaan (per 2 menit)
+                self._send_s1([r])
+
+                # Server 2: kirim saat batch penuh
                 if n >= batch_size:
-                    self._send_batch()
+                    self._send_s2_batch()
                     self.batch.clear()
                     self.root.after(0, self.gui.update_count, 0, batch_size)
 
@@ -166,56 +189,102 @@ class SparingApp:
             time.sleep(30)
 
     # ── Kirim batch 30 data ────────────────────────────────────────────────────
-    def _send_batch(self) -> None:
-        batch  = list(self.batch)
+    # ── Kirim ke Server 1 — setiap pembacaan (per 2 menit) ───────────────────
+    def _send_s1(self, readings: List[SensorReading]) -> None:
+        """
+        Kirim 1 data terbaru ke Server 1:
+          • jwt1_raw  — data murni sensor
+          • jwt1_proc — data setelah filter min/max
+        Jika offline atau gagal, simpan ke buffer_s1 untuk dikirim ulang nanti.
+        """
+        jwt1_raw  = self.net.create_jwt1_raw(readings)
+        jwt1_proc = self.net.create_jwt1_processed(readings)
+        now       = time.time()
+
+        if not jwt1_raw:
+            self._log("[S1] JWT gagal — secret key belum ada, data dibuang")
+            return
+
         online = self.net.check_internet()
-        jwt1   = self.net.create_jwt1(batch)
-        jwt2   = self.net.create_jwt2(batch)
-
-        now = time.time()
-
-        if not jwt1 or not jwt2:
-            self._log("JWT gagal dibuat — secret key belum ada, data disimpan offline")
-            if jwt1 or jwt2:
-                self.storage.save(jwt1, jwt2)
-            self.root.after(0, self.gui.update_send_offline, now)
-            self.root.after(0, self.gui.update_buffer, self.storage.count())
-            return
-
         if not online:
-            self._log("Offline — data batch disimpan ke buffer")
-            self.storage.save(jwt1, jwt2)
-            self.root.after(0, self.gui.update_connection, "internet", False)
-            self.root.after(0, self.gui.update_send_offline, now)
-            self.root.after(0, self.gui.update_buffer, self.storage.count())
-            return
+            self.storage_s1.save(jwt1_raw=jwt1_raw, jwt1_proc=jwt1_proc)
+            return   # tidak log setiap 2 menit agar log bersih
 
-        # Kirim ulang buffer lama terlebih dahulu
-        flushed = self.storage.flush(self.net)
+        # Kirim ulang buffer lama
+        flushed = self.storage_s1.flush_s1(self.net)
         if flushed:
-            self._log(f"{flushed} batch lama dari buffer berhasil dikirim ulang")
+            self._log(f"[S1] {flushed} data lama dari buffer berhasil dikirim ulang")
 
-        # Kirim batch saat ini
-        body1 = json.dumps({"token": jwt1})
-        body2 = json.dumps({"token": jwt2})
-        ok1   = self.net.post(self.cfg["server_url1"], body1)
-        ok2   = self.net.post(self.cfg["server_url2"], body2)
-        now   = time.time()
+        url1 = self.cfg["server_url1"]
+        ok1r = self.net.post(url1, json.dumps({"token": jwt1_raw}))
+        ok1p = self.net.post(url1, json.dumps({"token": jwt1_proc}))
+        ok1  = ok1r and ok1p
+        now  = time.time()
 
         self.root.after(0, self.gui.update_connection, "server1", ok1)
-        self.root.after(0, self.gui.update_connection, "server2", ok2)
-        self.root.after(0, self.gui.update_send_status, ok1, ok2, now)
 
-        if ok1 and ok2:
+        if ok1:
             self.last_tx = now
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
-            self._log("✓ Data batch berhasil dikirim ke Server 1 & Server 2")
+            self._log(f"✓ [S1] Data terkirim (raw + processed)")
         else:
-            status = f"S1={'OK' if ok1 else 'GAGAL'}  S2={'OK' if ok2 else 'GAGAL'}"
-            self._log(f"Pengiriman sebagian gagal ({status}) — disimpan ke buffer")
-            self.storage.save(jwt1, jwt2)
+            parts = []
+            if not ok1r: parts.append("raw GAGAL")
+            if not ok1p: parts.append("processed GAGAL")
+            self._log(f"✗ [S1] {', '.join(parts)} — disimpan ke buffer")
+            self.storage_s1.save(jwt1_raw=jwt1_raw, jwt1_proc=jwt1_proc)
 
-        self.root.after(0, self.gui.update_buffer, self.storage.count())
+        self.root.after(0, self.gui.update_buffer,
+                        self.storage_s1.count() + self.storage_s2.count())
+
+    # ── Kirim ke Server 2 — setiap batch penuh (30 data × 2 menit = 60 menit) ─
+    def _send_s2_batch(self) -> None:
+        """
+        Kirim batch 30 data ke Server 2 (data processed dengan filter min/max).
+        Jika offline atau gagal, simpan ke buffer_s2.
+        """
+        batch  = list(self.batch)
+        jwt2   = self.net.create_jwt2(batch)
+        now    = time.time()
+
+        if not jwt2:
+            self._log("[S2] JWT gagal — secret key belum ada, data dibuang")
+            self.root.after(0, self.gui.update_send_offline, now)
+            self.root.after(0, self.gui.update_buffer,
+                            self.storage_s1.count() + self.storage_s2.count())
+            return
+
+        online = self.net.check_internet()
+        if not online:
+            self._log("[S2] Offline — batch disimpan ke buffer")
+            self.storage_s2.save(jwt2=jwt2)
+            self.root.after(0, self.gui.update_connection, "internet", False)
+            self.root.after(0, self.gui.update_send_offline, now)
+            self.root.after(0, self.gui.update_buffer,
+                            self.storage_s1.count() + self.storage_s2.count())
+            return
+
+        # Kirim ulang buffer lama
+        flushed = self.storage_s2.flush_s2(self.net)
+        if flushed:
+            self._log(f"[S2] {flushed} batch lama dari buffer berhasil dikirim ulang")
+
+        ok2 = self.net.post(self.cfg["server_url2"],
+                            json.dumps({"token": jwt2}))
+        now = time.time()
+
+        self.root.after(0, self.gui.update_connection, "server2", ok2)
+        self.root.after(0, self.gui.update_send_status,
+                        True, ok2, now)   # S1 selalu True di titik ini
+
+        if ok2:
+            self._log(f"✓ [S2] Batch {len(batch)} data berhasil dikirim ke Server 2")
+        else:
+            self._log(f"✗ [S2] Gagal — batch disimpan ke buffer")
+            self.storage_s2.save(jwt2=jwt2)
+
+        self.root.after(0, self.gui.update_buffer,
+                        self.storage_s1.count() + self.storage_s2.count())
 
         # Perbarui secret key setelah setiap siklus kirim
         threading.Thread(target=self.net.fetch_all_keys, daemon=True).start()

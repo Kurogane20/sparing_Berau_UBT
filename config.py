@@ -26,9 +26,16 @@ DEFAULT_CONFIG: dict = {
     "slave_id_debit":         1,
 
     # Server 1 — Mitra Mutiara
-    "server_url1":            "https://sparing.mitramutiara.co.id/api/post-data",
-    "secret_key_url1":        "https://sparing.mitramutiara.co.id/api/get-key",
-    "uid1":                   "AGM03",
+    # uid1          : UID untuk data MURNI (tanpa batas min/max)
+    # uid1_processed: UID untuk data yang sudah di-filter min/max
+    "server_url1":            "http://127.0.0.1:8000/api/post-data",
+    "secret_key_url1":        "http://127.0.0.1:8000/api/get-key",
+    "uid1":                   "test",  # ganti jika server pakai UID berbeda
+    "uid1_processed":         "test_processed",   # ganti jika server pakai UID berbeda
+
+    # Log server
+    "log_url":                "http://127.0.0.1:8000/api/log",
+    "log_key":                "sparing",
 
     # Server 2 — Kemenlhk
     "server_url2":            "https://sparing.kemenlh.go.id/api/send-hourly",
@@ -47,10 +54,15 @@ DEFAULT_CONFIG: dict = {
     # Mode simulasi aktif jika pymodbus tidak tersedia
     "simulate_sensors":       not HAS_MODBUS,
 
-    # ── Batas min/max untuk data yang dikirim ke Server 2 (KLHK) ─────────────
-    # Server 1 selalu menerima data MURNI dari sensor (tanpa batas).
-    # Server 2 menerima data yang sudah di-clamp sesuai rentang valid ini.
-    # Nilai yang melebihi max akan diganti max, di bawah min akan diganti min.
+    # PIN untuk membuka tampilan data processed & batas Server 2
+    "secret_pin":             "1234",
+
+    # ── Batas min/max — berlaku untuk data processed (Server 1 processed & Server 2) ──
+    # Server 1 (uid1)            : data MURNI, tidak ada batas.
+    # Server 1 (uid1_processed)  : data difilter — nilai diluar batas → 0.
+    # Server 2 (uid2)            : data difilter — nilai diluar batas → 0.
+    # Nilai di luar [min, max] TIDAK dipaksa ke batas (tidak statis),
+    # melainkan diganti 0 agar server mengetahui data tidak valid.
     "limit_ph_min":           0.0,
     "limit_ph_max":           14.0,
     "limit_tss_min":          0.0,
