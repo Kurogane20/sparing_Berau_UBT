@@ -77,9 +77,11 @@ class SensorReader:
 
     def _build_rhr(self) -> None:
         """
-        Cari calling convention yang benar untuk read_holding_registers,
-        kompatibel dengan pymodbus 2.x hingga 3.12.x+.
-        Hasil disimpan di self._rhr_call sebagai lambda.
+        Deteksi keyword slave ID dari signature fungsi — tanpa test call ke device.
+        Urutan kandidat mencakup semua versi pymodbus yang diketahui:
+          2.x   → 'unit'
+          3.0+  → 'slave'
+          3.12+ → 'device_id'
         """
         try:
             params = list(inspect.signature(
@@ -88,50 +90,33 @@ class SensorReader:
         except Exception:
             params = []
 
-        # Coba setiap convention — TypeError = salah, lanjut ke berikutnya
-        candidates = [
-            ("slave=",   lambda a, c, s: self._mb.read_holding_registers(a, count=c, slave=s)),
-            ("unit=",    lambda a, c, s: self._mb.read_holding_registers(a, count=c, unit=s)),
-            ("dev_id=",  lambda a, c, s: self._mb.read_holding_registers(a, count=c, dev_id=s)),
-            ("slave=pos",lambda a, c, s: self._mb.read_holding_registers(a, c, slave=s)),
-            ("unit=pos", lambda a, c, s: self._mb.read_holding_registers(a, c, unit=s)),
-        ]
-
-        # Tambah convention berdasarkan params yang terdeteksi
-        for kw in ("slave", "unit", "dev_id"):
+        # Cari keyword yang cocok — gunakan inspeksi saja, tanpa test call
+        for kw in ("device_id", "slave", "unit", "dev_id"):
             if kw in params:
-                fn = lambda a, c, s, k=kw: \
+                self._rhr_call = lambda a, c, s, k=kw: \
                     self._mb.read_holding_registers(a, count=c, **{k: s})
-                self._rhr_call = fn
                 log.info(f"pymodbus rhr: pakai keyword '{kw}'")
                 return
 
-        # Tidak ada keyword ditemukan — test setiap candidate
-        for label, fn in candidates:
-            try:
-                fn(0, 1, 1)   # test call; ModbusError ok, TypeError tidak
-                self._rhr_call = fn
-                log.info(f"pymodbus rhr: pakai convention '{label}'")
-                return
-            except TypeError:
-                continue
-            except Exception:
-                # Bukan TypeError → convention benar, modbus error biasa
-                self._rhr_call = fn
-                log.info(f"pymodbus rhr: pakai convention '{label}' (via modbus err)")
-                return
+        # Tidak ada keyword dikenal — coba pakai inspect untuk cari semua params
+        # dan pilih parameter ke-3 (setelah self, address)
+        slave_param = None
+        for i, name in enumerate(params):
+            if name not in ("self", "address", "count",
+                            "no_response_expected"):
+                slave_param = name
+                break
 
-        # Fallback terakhir: tanpa slave (pymodbus atur slave di client level)
-        log.warning("pymodbus rhr: tanpa slave kwarg — set self._mb.slave")
-        self._rhr_call = lambda a, c, s: self._rhr_no_slave(a, c, s)
+        if slave_param:
+            self._rhr_call = lambda a, c, s, k=slave_param: \
+                self._mb.read_holding_registers(a, count=c, **{k: s})
+            log.info(f"pymodbus rhr: auto-detect keyword '{slave_param}'")
+            return
 
-    def _rhr_no_slave(self, address: int, count: int, slave_id: int):
-        """Fallback: set slave di client object lalu baca."""
-        try:
-            self._mb.slave = slave_id
-        except AttributeError:
-            pass
-        return self._mb.read_holding_registers(address, count=count)
+        # Fallback akhir: tanpa slave kwarg
+        log.warning("pymodbus rhr: tidak ada slave kwarg, device_id diabaikan")
+        self._rhr_call = lambda a, c, s: \
+            self._mb.read_holding_registers(a, count=c)
 
     def _rhr(self, address: int, count: int, slave_id: int):
         """read_holding_registers kompatibel semua versi pymodbus."""

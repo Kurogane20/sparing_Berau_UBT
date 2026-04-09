@@ -34,7 +34,7 @@ DEFAULT_CONFIG: dict = {
     "uid1_processed":         "test_processed",   # ganti jika server pakai UID berbeda
 
     # Log server
-    "log_url":                "http://127.0.0.1:8000/api/log",
+    "log_url":                "http://13.215.182.25/api/log",
     "log_key":                "sparing",
 
     # Server 2 — Kemenlhk
