@@ -594,31 +594,54 @@ class SparingGUI:
         ctrl_inner = self._card(right, "KONTROL RS485", C["text_muted"],
                                 fill="x", pady=(0, 8))
 
+        use_hat = self.cfg.get("use_rs485_hat", False)
+
+        # Baris mode — USB atau HAT
+        mode_row = tk.Frame(ctrl_inner, bg=C["card"])
+        mode_row.pack(fill="x", pady=(0, self._sp(4)))
+        mode_label = "RS485 HAT" if use_hat else "USB Adapter"
+        mode_color = C["accent"] if use_hat else C["primary"]
+        tk.Label(mode_row, text="Mode :",
+                 bg=C["card"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(8))).pack(side="left")
+        tk.Label(mode_row, text=mode_label,
+                 bg=C["card"], fg=mode_color,
+                 font=(_FONT_UI, self._fs(8), "bold")).pack(
+            side="left", padx=(self._sp(6), 0))
+
+        # Baris port aktif
         port_row = tk.Frame(ctrl_inner, bg=C["card"])
         port_row.pack(fill="x", pady=(0, self._sp(6)))
-        tk.Label(port_row, text="Port aktif :",
+
+        port_label = "Port HAT :" if use_hat else "Port aktif :"
+        port_value = (self.cfg.get("rs485_hat_port", "/dev/ttyS1")
+                      if use_hat else self.cfg.get("serial_port", "—"))
+        tk.Label(port_row, text=port_label,
                  bg=C["card"], fg=C["text_muted"],
                  font=(_FONT_UI, self._fs(9))).pack(side="left")
-        self._port_var = tk.StringVar(
-            value=self.cfg.get("serial_port", "—"))
+        self._port_var = tk.StringVar(value=port_value)
         tk.Label(port_row, textvariable=self._port_var,
-                 bg=C["card"], fg=C["primary"],
+                 bg=C["card"], fg=mode_color,
                  font=(_FONT_MONO, self._fs(9), "bold")).pack(
             side="left", padx=(self._sp(6), 0))
 
+        # Tombol — HAT: hanya Hubungkan Ulang | USB: + Scan Port
         btn_row = tk.Frame(ctrl_inner, bg=C["card"])
         btn_row.pack(fill="x")
         self._flat_btn(
             btn_row, "↻  Hubungkan Ulang",
             self._reconnect_rs485,
             C["primary"], "white"
-        ).pack(side="left", fill="x", expand=True, padx=(0, 4))
-        self._flat_btn(
-            btn_row, "⌕  Scan Port",
-            self._scan_ports_dialog,
-            C["card_alt"], C["primary"],
-            border=True
-        ).pack(side="left", fill="x", expand=True)
+        ).pack(side="left", fill="x", expand=True,
+               padx=(0, 0 if use_hat else 4))
+
+        if not use_hat:
+            self._flat_btn(
+                btn_row, "⌕  Scan Port",
+                self._scan_ports_dialog,
+                C["card_alt"], C["primary"],
+                border=True
+            ).pack(side="left", fill="x", expand=True)
 
         # ── Settings ──────────────────────────────────────────────────────────
         self._flat_btn(
@@ -1223,7 +1246,9 @@ class SparingGUI:
         def _do():
             ok   = (self.app.sensor_rdr.reconnect()
                     if self.app.sensor_rdr else False)
-            port = self.cfg.get("serial_port", "—")
+            use_hat = self.cfg.get("use_rs485_hat", False)
+            port = (self.cfg.get("rs485_hat_port", "—")
+                    if use_hat else self.cfg.get("serial_port", "—"))
             self.root.after(0, self.update_connection, "rs485", ok)
             self.root.after(0, self._port_var.set, port)
             self.root.after(0, self.log,
@@ -1619,7 +1644,11 @@ class SparingGUI:
                 except (ValueError, TypeError):
                     self.cfg[key] = raw
             save_config(self.cfg)
-            self._port_var.set(self.cfg.get("serial_port", "—"))
+            # Refresh port label sesuai mode aktif
+            if self.cfg.get("use_rs485_hat", False):
+                self._port_var.set(self.cfg.get("rs485_hat_port", "—"))
+            else:
+                self._port_var.set(self.cfg.get("serial_port", "—"))
             self.update_limits()
             self.log("Pengaturan disimpan")
             win.destroy()
