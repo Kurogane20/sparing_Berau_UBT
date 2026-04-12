@@ -84,59 +84,70 @@ class NetworkManager:
 
     # ── JWT ───────────────────────────────────────────────────────────────────
     @staticmethod
-    def _cap_fluctuate(value: float, lo: float, hi: float) -> float:
+    def _cap_fluctuate(value: float, lo: float, hi: float,
+                       variation: float = 0.0) -> float:
         """
-        Batasi nilai ke rentang [lo, hi].
-        Jika nilai di luar batas, kembalikan nilai dekat batas dengan variasi
-        acak kecil (2% dari rentang) agar tidak statis di angka batas yang sama.
-
-        Contoh (pH max=14, sensor baca 15.2):
-          → dikirim antara 13.72–14.00, berfluktuasi setiap pembacaan.
+        Jika nilai dalam [lo, hi] → kembalikan apa adanya.
+        Jika nilai di luar batas → kembalikan nilai acak di zona floating:
+          • value > hi  → acak dalam [hi - variation, hi]
+          • value < lo  → acak dalam [lo, lo + variation]
+        variation = lebar zona floating (dikonfigurasi per sensor).
         """
         if lo <= value <= hi:
             return value
-        # Variasi = 2% dari rentang konfigurasi, minimal 0.01
-        variation = max(0.01, (hi - lo) * 0.05)
+        var = max(0.001, variation)
         if value > hi:
-            return hi - random.uniform(0, variation)
+            return hi - random.uniform(0, var)
         else:  # value < lo
-            return lo + random.uniform(0, variation)
+            return lo + random.uniform(0, var)
 
-    def _apply_limits(self, ph: float, tss: float, debit: float):
-        """
-        Terapkan batas min/max dengan variasi fluktuatif.
-        Nilai dalam batas → dikirim apa adanya.
-        Nilai di luar batas → dikembalikan mendekati batas dengan variasi kecil,
-        sehingga tidak terlihat statis/flat di nilai batas.
-        """
-        ph_out    = self._cap_fluctuate(
-            ph,    self.cfg["limit_ph_min"],    self.cfg["limit_ph_max"])
-        tss_out   = self._cap_fluctuate(
-            tss,   self.cfg["limit_tss_min"],   self.cfg["limit_tss_max"])
-        debit_out = self._cap_fluctuate(
-            debit, self.cfg["limit_debit_min"], self.cfg["limit_debit_max"])
+    def _apply_limits(self, ph: float, tss: float, debit: float,
+                      pm25: float = 0.0, pm10: float = 0.0,
+                      pm100: float = 0.0):
+        """Terapkan batas min/max dengan variasi fluktuatif ke semua parameter."""
+        c = self.cfg
+        ph_out    = self._cap_fluctuate(ph,    c["limit_ph_min"],    c["limit_ph_max"],    c.get("limit_ph_float",    0.3))
+        tss_out   = self._cap_fluctuate(tss,   c["limit_tss_min"],   c["limit_tss_max"],   c.get("limit_tss_float",   10.0))
+        debit_out = self._cap_fluctuate(debit, c["limit_debit_min"], c["limit_debit_max"], c.get("limit_debit_float",  1.0))
+        pm25_out  = self._cap_fluctuate(pm25,  c["limit_pm25_min"],  c["limit_pm25_max"],  c.get("limit_pm25_float",  10.0))
+        pm10_out  = self._cap_fluctuate(pm10,  c["limit_pm10_min"],  c["limit_pm10_max"],  c.get("limit_pm10_float",  10.0))
+        pm100_out = self._cap_fluctuate(pm100, c["limit_pm100_min"], c["limit_pm100_max"], c.get("limit_pm100_float", 10.0))
+        return ph_out, tss_out, debit_out, pm25_out, pm10_out, pm100_out
 
-        if ph_out != ph or tss_out != tss or debit_out != debit:
-            log.debug(
-                f"[limit] pH {ph:.3f}→{ph_out:.3f}  "
-                f"TSS {tss:.3f}→{tss_out:.3f}  "
-                f"Debit {debit:.5f}→{debit_out:.5f}"
-            )
-        return ph_out, tss_out, debit_out
+    def _build_row(self, r: SensorReading, processed: bool = False) -> dict:
+        """
+        Bangun satu baris data untuk JWT.
+        Hanya sertakan field sensor yang diaktifkan di config.
+        Jika processed=True, terapkan filter min/max.
+        """
+        row: dict = {"datetime": int(r.timestamp), "cod": 0, "nh3n": 0}
+        cfg = self.cfg
+
+        if processed:
+            ph, tss, debit, pm25, pm10, pm100 = self._apply_limits(
+                r.ph, r.tss, r.debit, r.pm25, r.pm10, r.pm100)
+        else:
+            ph, tss, debit = r.ph, r.tss, r.debit
+            pm25, pm10, pm100 = r.pm25, r.pm10, r.pm100
+
+        if cfg.get("sensor_ph_enabled",    True):
+            row["pH"]    = round(ph,    2)
+        if cfg.get("sensor_tss_enabled",   True):
+            row["tss"]   = round(tss,   2)
+        if cfg.get("sensor_debit_enabled", True):
+            row["debit"] = round(debit, 2)
+        if cfg.get("sensor_dust_enabled",  True):
+            row["pm25"]  = round(pm25,  1)
+            row["pm10"]  = round(pm10,  1)
+            row["pm100"] = round(pm100, 1)
+        return row
 
     def _make_jwt_raw(self, uid: str, key: str,
                       batch: List[SensorReading]) -> str:
         """JWT data MURNI — nilai sensor tanpa filter min/max."""
         if not key or not HAS_JWT or pyjwt is None:
             return ""
-        rows = [{
-            "datetime": int(r.timestamp),
-            "pH":       round(r.ph,    2),
-            "tss":      round(r.tss,   2),
-            "debit":    round(r.debit, 2),
-            "cod":      0,
-            "nh3n":     0,
-        } for r in batch]
+        rows = [self._build_row(r, processed=False) for r in batch]
         try:
             return pyjwt.encode({"uid": uid, "data": rows}, key, algorithm="HS256")
         except Exception as e:
@@ -145,20 +156,10 @@ class NetworkManager:
 
     def _make_jwt_processed(self, uid: str, key: str,
                             batch: List[SensorReading]) -> str:
-        """JWT data PROCESSED — nilai di luar batas diganti 0."""
+        """JWT data PROCESSED — nilai di luar batas difluktuasikan ke batas."""
         if not key or not HAS_JWT or pyjwt is None:
             return ""
-        rows = []
-        for r in batch:
-            ph, tss, debit = self._apply_limits(r.ph, r.tss, r.debit)
-            rows.append({
-                "datetime": int(r.timestamp),
-                "pH":       round(ph,    2),
-                "tss":      round(tss,   2),
-                "debit":    round(debit, 2),
-                "cod":      0,
-                "nh3n":     0,
-            })
+        rows = [self._build_row(r, processed=True) for r in batch]
         try:
             return pyjwt.encode({"uid": uid, "data": rows}, key, algorithm="HS256")
         except Exception as e:
@@ -183,8 +184,8 @@ class NetworkManager:
 
     # Alias lama agar tidak ada error jika masih dipanggil
     def get_processed(self, r: SensorReading) -> tuple:
-        """Kembalikan (ph, tss, debit) setelah filter min/max — untuk tampilan GUI."""
-        return self._apply_limits(r.ph, r.tss, r.debit)
+        """Kembalikan (ph, tss, debit, pm25, pm10, pm100) setelah filter — untuk GUI."""
+        return self._apply_limits(r.ph, r.tss, r.debit, r.pm25, r.pm10, r.pm100)
 
     def create_jwt1(self, batch: List[SensorReading]) -> str:
         return self.create_jwt1_raw(batch)

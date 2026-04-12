@@ -130,16 +130,20 @@ class SparingApp:
                 mode_tag = "" if use_hw else "[SIM] "
 
                 # Hitung nilai processed untuk ditampilkan di GUI
-                proc_ph, proc_tss, proc_debit = self.net.get_processed(r)
+                proc_ph, proc_tss, proc_debit, \
+                proc_pm25, proc_pm10, proc_pm100 = self.net.get_processed(r)
 
                 self._log(
                     f"{mode_tag}Data {n}/{batch_size} — "
                     f"pH={r.ph:.2f}  TSS={r.tss:.2f} mg/L  "
-                    f"Debit={r.debit:.4f} m³/s"
+                    f"Debit={r.debit:.4f} m³/s  "
+                    f"PM2.5={r.pm25:.1f}  PM10={r.pm10:.1f}  PM100={r.pm100:.1f} ug/m³"
                 )
                 self.root.after(0, self.gui.update_sensors, r)
                 self.root.after(0, self.gui.update_sensors_processed,
                                 proc_ph, proc_tss, proc_debit)
+                self.root.after(0, self.gui.update_dust_processed,
+                                proc_pm25, proc_pm10, proc_pm100)
                 self.root.after(0, self.gui.update_count, n, batch_size)
 
                 # Server 1: kirim setiap pembacaan (per 2 menit)

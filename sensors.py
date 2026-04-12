@@ -153,7 +153,7 @@ class SensorReader:
         except Exception as e:
             log.error(f"Baca pH gagal: {e}")
             self._on_error(f"[SENSOR] Baca pH gagal: {e}")
-        return round(random.uniform(6.0, 8.0), 2)
+        return 0.0
 
     # ── TSS ───────────────────────────────────────────────────────────────────
     def _read_tss(self) -> float:
@@ -173,7 +173,7 @@ class SensorReader:
         except Exception as e:
             log.error(f"Baca TSS gagal: {e}")
             self._on_error(f"[SENSOR] Baca TSS gagal: {e}")
-        return round(random.uniform(60.0, 90.0), 2)
+        return 0.0
 
     # ── Debit ─────────────────────────────────────────────────────────────────
     def _read_debit(self) -> float:
@@ -195,14 +195,68 @@ class SensorReader:
         except Exception as e:
             log.error(f"Baca Debit gagal: {e}")
             self._on_error(f"[SENSOR] Baca Debit gagal: {e}")
-        return round(random.uniform(0.010, 0.030), 5)
+        return 0.0
+
+    # ── Debu (RK300-02) ───────────────────────────────────────────────────────
+    def _calc_pm_from_tsp(self, pm100: float) -> tuple:
+        """
+        Hitung PM2.5 dan PM10 dari nilai TSP (PM100).
+        Faktor dipilih acak dalam rentang yang dikonfigurasi setiap pembacaan:
+          PM2.5 = random(pm25_factor_min, pm25_factor_max) × TSP
+          PM10  = random(pm10_factor_min, pm10_factor_max) × TSP
+        """
+        f25  = random.uniform(self.cfg.get("pm25_factor_min", 0.1),
+                              self.cfg.get("pm25_factor_max", 0.2))
+        f10  = random.uniform(self.cfg.get("pm10_factor_min", 0.3),
+                              self.cfg.get("pm10_factor_max", 0.4))
+        pm25 = round(f25 * pm100, 1)
+        pm10 = round(f10 * pm100, 1)
+        return pm25, pm10
+
+    def _read_dust(self) -> tuple:
+        """
+        Slave ID = slave_id_dust (default 3).
+        Register 0x0001, count 3:
+          reg[0] = PM2.5  (tidak dipakai — dihitung dari TSP)
+          reg[1] = PM10   (tidak dipakai — dihitung dari TSP)
+          reg[2] = PM100/TSP (ug/m³) — nilai utama
+
+        PM2.5 = pm25_factor × TSP
+        PM10  = pm10_factor × TSP
+        """
+        if self._mb is None:
+            tsp  = round(random.uniform(30, 200), 1)
+            pm25, pm10 = self._calc_pm_from_tsp(tsp)
+            return pm25, pm10, tsp
+        try:
+            r = self._rhr(1, 3, self.cfg["slave_id_dust"])
+            if not r.isError():
+                pm100 = round(r.registers[2] + self.cfg["offset_pm100"], 1)
+                pm25, pm10 = self._calc_pm_from_tsp(pm100)
+                return pm25, pm10, pm100
+            else:
+                msg = f"[SENSOR] Debu isError: {r}"
+                log.error(msg)
+                self._on_error(msg)
+        except Exception as e:
+            log.error(f"Baca Debu gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Debu gagal: {e}")
+        return (0.0, 0.0, 0.0)
 
     # ── Baca semua sensor ─────────────────────────────────────────────────────
     def read_all(self) -> SensorReading:
         reading = SensorReading(timestamp=time.time())
-        reading.ph    = self._read_ph();   time.sleep(0.1)
-        reading.tss   = self._read_tss();  time.sleep(0.1)
-        reading.debit = self._read_debit()
+        if self.cfg.get("sensor_ph_enabled", True):
+            reading.ph    = self._read_ph()
+            time.sleep(0.1)
+        if self.cfg.get("sensor_tss_enabled", True):
+            reading.tss   = self._read_tss()
+            time.sleep(0.1)
+        if self.cfg.get("sensor_debit_enabled", True):
+            reading.debit = self._read_debit()
+            time.sleep(0.1)
+        if self.cfg.get("sensor_dust_enabled", True):
+            reading.pm25, reading.pm10, reading.pm100 = self._read_dust()
         return reading
 
     def close(self) -> None:

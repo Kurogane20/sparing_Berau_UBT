@@ -24,6 +24,7 @@ DEFAULT_CONFIG: dict = {
     "slave_id_ph":            2,
     "slave_id_tss":           10,
     "slave_id_debit":         1,
+    "slave_id_dust":          3,     # RK300-02 default=1, set ke 3 agar tidak konflik
 
     # Server 1 — Mitra Mutiara
     # uid1          : UID untuk data MURNI (tanpa batas min/max)
@@ -46,10 +47,25 @@ DEFAULT_CONFIG: dict = {
     "interval_seconds":       120,
     "data_batch_size":        30,
 
+    # Pilihan sensor aktif (True = tampil + kirim ke server)
+    "sensor_ph_enabled":      True,
+    "sensor_tss_enabled":     True,
+    "sensor_debit_enabled":   True,
+    "sensor_dust_enabled":    True,   # PM2.5, PM10, PM100 (RK300-02)
+
     # Offset kalibrasi sensor
     "offset_ph":              0.0,
     "offset_tss":             0.0,
     "offset_debit":           0.0,
+    "offset_pm100":           0.0,
+
+    # Faktor perhitungan PM2.5 dan PM10 dari TSP (PM100)
+    # PM2.5 = random(pm25_factor_min, pm25_factor_max) × TSP
+    # PM10  = random(pm10_factor_min, pm10_factor_max) × TSP
+    "pm25_factor_min":        0.1,
+    "pm25_factor_max":        0.2,
+    "pm10_factor_min":        0.3,
+    "pm10_factor_max":        0.4,
 
     # Mode simulasi aktif jika pymodbus tidak tersedia
     "simulate_sensors":       not HAS_MODBUS,
@@ -65,10 +81,22 @@ DEFAULT_CONFIG: dict = {
     # melainkan diganti 0 agar server mengetahui data tidak valid.
     "limit_ph_min":           0.0,
     "limit_ph_max":           14.0,
+    "limit_ph_float":         0.3,     # lebar zona floating saat nilai di luar batas
     "limit_tss_min":          0.0,
     "limit_tss_max":          500.0,   # mg/L
+    "limit_tss_float":        10.0,
     "limit_debit_min":        0.0,
     "limit_debit_max":        100.0,   # m³/s
+    "limit_debit_float":      1.0,
+    "limit_pm25_min":         0.0,
+    "limit_pm25_max":         1000.0,  # ug/m³
+    "limit_pm25_float":       10.0,
+    "limit_pm10_min":         0.0,
+    "limit_pm10_max":         1000.0,  # ug/m³
+    "limit_pm10_float":       10.0,
+    "limit_pm100_min":        0.0,
+    "limit_pm100_max":        1000.0,  # ug/m³
+    "limit_pm100_float":      10.0,
 }
 
 

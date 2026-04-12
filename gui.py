@@ -46,18 +46,21 @@ class SparingGUI:
         self.app  = app
         self.cfg  = app.cfg
 
-        self._sensor_vars: dict = {}      # key → StringVar nilai sensor (raw)
-        self._proc_vars:   dict = {}      # key → StringVar nilai processed
-        self._conn_dots:   dict = {}      # key → Canvas (dot indikator)
-        self._conn_chips:  dict = {}      # key → (StringVar, Label)
-        self._conn_labels: dict = {}      # alias untuk update_connection()
-        self._limit_vars:  dict = {}      # key → StringVar batas S2
+        self._sensor_vars:  dict = {}      # key → StringVar nilai sensor (raw)
+        self._proc_vars:    dict = {}      # key → StringVar nilai processed
+        self._conn_dots:    dict = {}      # key → Canvas (dot indikator)
+        self._conn_chips:   dict = {}      # key → (StringVar, Label)
+        self._conn_labels:  dict = {}      # alias untuk update_connection()
+        self._limit_vars:   dict = {}      # key → StringVar batas S2
+        self._sensor_cards: dict = {}      # cfg_key → (canvas, col, row_frame)
+        self._dust_row_frame: tk.Frame = None  # baris kartu debu
 
         self._unlocked:        bool      = False
         self._lock_btn_var:    tk.StringVar = None   # set saat build footer
         self._limits_wrapper:  tk.Frame  = None      # hidden sampai unlock
         self._limits_pack_ref: tk.Widget = None      # widget sebelum limits card
         self._last_card_shadow: tk.Frame = None      # diset oleh _card()
+        self._right_canvas:    tk.Canvas = None      # canvas scroll panel kanan
 
         self._setup_window()
         self._calc_scale()
@@ -123,6 +126,7 @@ class SparingGUI:
     def _build(self) -> None:
         self._build_header()
         self._build_sensor_row()
+        self._build_dust_row()
         self._build_body()
         self._build_footer()
 
@@ -220,8 +224,25 @@ class SparingGUI:
     def _add_logo(self, parent) -> None:
         if HAS_PIL and Image is not None and LOGO_FILE.exists():
             try:
-                img = Image.open(LOGO_FILE).resize(
-                    (self._sp(100), self._sp(46)), Image.LANCZOS)
+                img = Image.open(LOGO_FILE).convert("RGBA")
+
+                # Pertahankan aspek rasio — tinggi max sesuai header
+                max_h = self._sp(48)
+                max_w = self._sp(120)
+                orig_w, orig_h = img.size
+                ratio = min(max_w / orig_w, max_h / orig_h)
+                new_w = max(1, round(orig_w * ratio))
+                new_h = max(1, round(orig_h * ratio))
+
+                # Resize high-quality dengan antialiasing
+                img = img.resize((new_w * 2, new_h * 2), Image.LANCZOS)
+                img = img.resize((new_w, new_h), Image.LANCZOS)
+
+                # Tempel ke background panel (hilangkan artefak transparan)
+                bg_img = Image.new("RGBA", (new_w, new_h), C["panel"])
+                bg_img.paste(img, mask=img.split()[3])
+                img = bg_img.convert("RGB")
+
                 self._logo_img = ImageTk.PhotoImage(img)
                 tk.Label(parent, image=self._logo_img,
                          bg=C["panel"]).pack(side="left")
@@ -230,65 +251,67 @@ class SparingGUI:
                 pass
         tk.Label(parent, text="SUCOFINDO",
                  bg=C["panel"], fg=C["primary_dark"],
-                 font=(_FONT_UI, 13, "bold")).pack(side="left")
+                 font=(_FONT_UI, self._fs(13), "bold")).pack(side="left")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SENSOR ROW  — tiga kartu penuh warna, nilai monospace besar
     # ═══════════════════════════════════════════════════════════════════════════
     def _build_sensor_row(self) -> None:
-        row = tk.Frame(self.root, bg=C["bg"])
-        row.pack(fill="x", padx=self._sp(14), pady=(self._sp(6), 0))
+        self._main_sensor_row = tk.Frame(self.root, bg=C["bg"])
+        self._main_sensor_row.pack(fill="x", padx=self._sp(14),
+                                   pady=(self._sp(6), 0))
+        row = self._main_sensor_row
 
         defs = [
-            # key     label    unit    bg_color       label_color
-            ("ph",   "pH",    "",     C["s_ph"],     "#A8CCFF"),
-            ("tss",  "TSS",   "mg/L", C["s_tss"],    "#A0D8F0"),
-            ("debit","DEBIT", "m³/s", C["s_debit"],  "#9AECD8"),
+            # cfg_key                  key     label    unit    bg           label_color
+            ("sensor_ph_enabled",    "ph",    "pH",    "",     C["s_ph"],    "#A8CCFF"),
+            ("sensor_tss_enabled",   "tss",   "TSS",   "mg/L", C["s_tss"],   "#A0D8F0"),
+            ("sensor_debit_enabled", "debit", "DEBIT", "m³/s", C["s_debit"], "#9AECD8"),
         ]
-        for col, (key, label, unit, bg, lc) in enumerate(defs):
+        for col, (cfg_key, key, label, unit, bg, lc) in enumerate(defs):
             card = self._sensor_card(row, key, label, unit, bg, lc)
-            card.grid(row=0, column=col, padx=6, sticky="nsew")
+            card.grid(row=0, column=col, padx=self._sp(6), sticky="nsew")
             row.columnconfigure(col, weight=1)
+            self._sensor_cards[cfg_key] = (card,)   # simpan hanya widget
+
+        # Terapkan visibilitas awal
+        self.root.after(100, self.apply_sensor_visibility)
 
     def _sensor_card(self, parent, key: str, label: str,
-                     unit: str, bg: str, label_color: str) -> tk.Frame:
+                     unit: str, bg: str, label_color: str) -> tk.Canvas:
         """
-        Kartu sensor dengan warna solid.
+        Kartu sensor dengan sudut melengkung menggunakan Canvas.
         Selalu menampilkan raw (besar) dan processed (kecil, dimask saat terkunci).
         """
-        shadow = tk.Frame(parent, bg=C["shadow"], padx=1, pady=1)
+        canvas, inner = self._rounded_canvas(
+            parent, bg, radius=self._sp(22))
 
-        card = tk.Frame(shadow, bg=bg)
-        card.pack(fill="both", expand=True)
-
-        # Top accent line
-        tk.Frame(card, bg=label_color, height=2).pack(fill="x")
-
+        # ── Konten ───────────────────────────────────────────────────────────
         # Parameter label
-        tk.Label(card, text=label,
+        tk.Label(inner, text=label,
                  bg=bg, fg=label_color,
                  font=(_FONT_UI, self._fs(9), "bold")).pack(
             pady=(self._sp(6), 0))
 
-        # ── Raw value — large, always visible ────────────────────────────────
+        # ── Raw value ─────────────────────────────────────────────────────────
         raw_var = tk.StringVar(value="—")
         self._sensor_vars[key] = raw_var
-        tk.Label(card, textvariable=raw_var,
+        tk.Label(inner, textvariable=raw_var,
                  bg=bg, fg="white",
                  font=(_FONT_MONO, self._fs(26), "bold")).pack(
             pady=(self._sp(1), 0))
 
-        tk.Label(card, text=unit,
+        tk.Label(inner, text=unit,
                  bg=bg, fg=label_color,
                  font=(_FONT_UI, self._fs(8))).pack()
 
         # ── Separator ─────────────────────────────────────────────────────────
-        tk.Frame(card, bg=label_color, height=1).pack(
+        tk.Frame(inner, bg=label_color, height=1).pack(
             fill="x", padx=self._sp(20),
             pady=(self._sp(4), self._sp(2)))
 
-        # ── Processed value — smaller, masked when locked ─────────────────────
-        proc_row = tk.Frame(card, bg=bg)
+        # ── Processed value ───────────────────────────────────────────────────
+        proc_row = tk.Frame(inner, bg=bg)
         proc_row.pack(pady=(0, self._sp(6)))
 
         tk.Label(proc_row, text="PROCESSED",
@@ -301,7 +324,86 @@ class SparingGUI:
                  bg=bg, fg=label_color,
                  font=(_FONT_MONO, self._fs(14), "bold")).pack()
 
-        return shadow
+        return canvas
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # DUST ROW  — tiga kartu kompak PM2.5 / PM10 / PM100
+    # ═══════════════════════════════════════════════════════════════════════════
+    def _build_dust_row(self) -> None:
+        # Wrapper baris dengan label judul di kiri
+        wrap = tk.Frame(self.root, bg=C["bg"])
+        wrap.pack(fill="x", padx=self._sp(14), pady=(self._sp(4), 0))
+        self._dust_row_frame = wrap
+        if not self.cfg.get("sensor_dust_enabled", True):
+            wrap.pack_forget()
+
+        # Label "KUALITAS UDARA" sebagai sub-header
+        tk.Label(wrap, text="KUALITAS UDARA  (RK300-02)",
+                 bg=C["bg"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(7), "bold")).pack(
+            anchor="w", pady=(0, self._sp(3)))
+
+        row = tk.Frame(wrap, bg=C["bg"])
+        row.pack(fill="x")
+
+        # Warna kartu debu — lebih gelap/abu agar berbeda dari sensor utama
+        _DUST_COLOR = "#455A64"   # biru-abu gelap
+        _DUST_LC    = "#B0BEC5"   # abu terang untuk label
+
+        defs = [
+            ("pm25",  "PM 2.5",  "ug/m³", "#37474F", "#90A4AE"),
+            ("pm10",  "PM 10",   "ug/m³", "#37474F", "#80CBC4"),
+            ("pm100", "PM 100",  "ug/m³", "#37474F", "#FFCC80"),
+        ]
+        for col, (key, label, unit, bg, lc) in enumerate(defs):
+            card = self._dust_card(row, key, label, unit, bg, lc)
+            card.grid(row=0, column=col, padx=self._sp(6), sticky="nsew")
+            row.columnconfigure(col, weight=1)
+        self._sensor_cards["sensor_dust_enabled"] = (wrap,)
+
+    def _dust_card(self, parent, key: str, label: str,
+                   unit: str, bg: str, label_color: str) -> tk.Canvas:
+        """Kartu kompak untuk sensor debu (PM) — lebih kecil dari sensor utama."""
+        canvas, inner = self._rounded_canvas(parent, bg, radius=self._sp(16))
+
+        # Label parameter
+        tk.Label(inner, text=label,
+                 bg=bg, fg=label_color,
+                 font=(_FONT_UI, self._fs(8), "bold")).pack(
+            pady=(self._sp(5), 0))
+
+        # Nilai raw — lebih kecil dari sensor utama
+        raw_var = tk.StringVar(value="—")
+        self._sensor_vars[key] = raw_var
+        tk.Label(inner, textvariable=raw_var,
+                 bg=bg, fg="white",
+                 font=(_FONT_MONO, self._fs(18), "bold")).pack(
+            pady=(self._sp(1), 0))
+
+        tk.Label(inner, text=unit,
+                 bg=bg, fg=label_color,
+                 font=(_FONT_UI, self._fs(7))).pack()
+
+        # Separator tipis
+        tk.Frame(inner, bg=label_color, height=1).pack(
+            fill="x", padx=self._sp(16),
+            pady=(self._sp(3), self._sp(2)))
+
+        # Processed (masked saat terkunci)
+        proc_row = tk.Frame(inner, bg=bg)
+        proc_row.pack(pady=(0, self._sp(5)))
+
+        tk.Label(proc_row, text="PROCESSED",
+                 bg=bg, fg=label_color,
+                 font=(_FONT_UI, self._fs(6), "bold")).pack()
+
+        proc_var = tk.StringVar(value="●  ●  ●")
+        self._proc_vars[key] = proc_var
+        tk.Label(proc_row, textvariable=proc_var,
+                 bg=bg, fg=label_color,
+                 font=(_FONT_MONO, self._fs(11), "bold")).pack()
+
+        return canvas
 
     # ═══════════════════════════════════════════════════════════════════════════
     # BODY  — log (kiri lebar) + panel info (kanan)
@@ -310,32 +412,31 @@ class SparingGUI:
         body = tk.Frame(self.root, bg=C["bg"])
         body.pack(fill="both", expand=True,
                   padx=self._sp(14), pady=self._sp(6))
+        self._body_frame = body
 
         self._build_log_panel(body)
         self._build_right_panel(body)
 
     # ── Log panel ─────────────────────────────────────────────────────────────
     def _build_log_panel(self, parent: tk.Frame) -> None:
-        wrapper = tk.Frame(parent, bg=C["shadow"], padx=1, pady=1)
-        wrapper.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        canvas, outer = self._rounded_canvas(
+            parent, C["card"], radius=self._sp(14),
+            side="left", fill="both", expand=True,
+            padx=(0, self._sp(8)))
 
-        outer = tk.Frame(wrapper, bg=C["card"])
-        outer.pack(fill="both", expand=True)
+        # Accent stripe + title
+        tk.Frame(outer, bg=C["accent"],
+                 height=self._sp(3)).pack(fill="x")
 
-        # Title bar
         title_bar = tk.Frame(outer, bg=C["card"])
         title_bar.pack(fill="x")
-
-        tk.Frame(title_bar, bg=C["accent"], width=4).pack(
-            side="left", fill="y")
         tk.Label(title_bar, text="LOG AKTIVITAS",
                  bg=C["card"], fg=C["accent"],
                  font=(_FONT_UI, self._fs(9), "bold"),
-                 padx=self._sp(10), pady=self._sp(8)).pack(side="left")
-        tk.Frame(title_bar, bg=C["border"], height=1).pack(
-            side="bottom", fill="x")
+                 padx=self._sp(10), pady=self._sp(7)).pack(side="left")
+        tk.Frame(outer, bg=C["border"], height=1).pack(fill="x")
 
-        # Terminal area
+        # Terminal area (rounded bottom corners mengikuti canvas)
         log_frame = tk.Frame(outer, bg=C["log_bg"])
         log_frame.pack(fill="both", expand=True)
 
@@ -364,9 +465,37 @@ class SparingGUI:
 
     # ── Right panel ───────────────────────────────────────────────────────────
     def _build_right_panel(self, parent: tk.Frame) -> None:
-        right = tk.Frame(parent, bg=C["bg"], width=self._r_width)
-        right.pack(side="right", fill="y")
-        right.pack_propagate(False)
+        # Container dengan lebar tetap
+        right_outer = tk.Frame(parent, bg=C["bg"], width=self._r_width)
+        right_outer.pack(side="right", fill="y")
+        right_outer.pack_propagate(False)
+
+        # Canvas + scrollbar agar konten bisa di-scroll jika tidak muat
+        r_canvas = tk.Canvas(right_outer, bg=C["bg"], highlightthickness=0,
+                             bd=0)
+        r_sb = ttk.Scrollbar(right_outer, orient="vertical",
+                             command=r_canvas.yview)
+        r_canvas.configure(yscrollcommand=r_sb.set)
+        r_sb.pack(side="right", fill="y")
+        r_canvas.pack(side="left", fill="both", expand=True)
+
+        right = tk.Frame(r_canvas, bg=C["bg"])
+        r_win = r_canvas.create_window((0, 0), window=right, anchor="nw")
+
+        def _on_right_configure(e):
+            r_canvas.configure(scrollregion=r_canvas.bbox("all"))
+        def _on_canvas_resize(e):
+            r_canvas.itemconfig(r_win, width=e.width)
+
+        right.bind("<Configure>", _on_right_configure)
+        r_canvas.bind("<Configure>", _on_canvas_resize)
+
+        # Scroll dengan mouse wheel
+        def _on_mousewheel(e):
+            r_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        r_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        self._right_canvas = r_canvas   # simpan untuk auto-scroll saat unlock
 
         # ── Info pengiriman ───────────────────────────────────────────────────
         inner = self._card(right, "INFO PENGIRIMAN DATA", C["primary"],
@@ -420,7 +549,7 @@ class SparingGUI:
 
         hdr = tk.Frame(inner3, bg=C["card"])
         hdr.pack(fill="x")
-        for col, (txt, w) in enumerate([("", 6), ("MIN", 8), ("MAX", 8)]):
+        for col, (txt, w) in enumerate([("", 7), ("MIN", 7), ("MAX", 7), ("±", 6)]):
             tk.Label(hdr, text=txt, bg=C["card"], fg=C["text_muted"],
                      font=(_FONT_UI, 8, "bold"),
                      width=w, anchor="w").grid(
@@ -429,25 +558,31 @@ class SparingGUI:
         tk.Frame(inner3, bg=C["border"], height=1).pack(
             fill="x", pady=(4, 2))
 
-        for param, k_min, k_max in [
-            ("pH",    "limit_ph_min",    "limit_ph_max"),
-            ("TSS",   "limit_tss_min",   "limit_tss_max"),
-            ("Debit", "limit_debit_min", "limit_debit_max"),
+        self._limit_rows: dict = {}   # cfg_key → row frame
+
+        for cfg_key, param, k_min, k_max, k_float in [
+            ("sensor_ph_enabled",    "pH",    "limit_ph_min",    "limit_ph_max",    "limit_ph_float"),
+            ("sensor_tss_enabled",   "TSS",   "limit_tss_min",   "limit_tss_max",   "limit_tss_float"),
+            ("sensor_debit_enabled", "Debit", "limit_debit_min", "limit_debit_max", "limit_debit_float"),
+            ("sensor_dust_enabled",  "PM2.5", "limit_pm25_min",  "limit_pm25_max",  "limit_pm25_float"),
+            ("sensor_dust_enabled",  "PM10",  "limit_pm10_min",  "limit_pm10_max",  "limit_pm10_float"),
+            ("sensor_dust_enabled",  "PM100", "limit_pm100_min", "limit_pm100_max", "limit_pm100_float"),
         ]:
             lim_row = tk.Frame(inner3, bg=C["card"])
-            lim_row.pack(fill="x", pady=2)
             tk.Label(lim_row, text=param,
                      bg=C["card"], fg=C["text_muted"],
                      font=(_FONT_UI, 9),
-                     width=6, anchor="w").pack(side="left")
-            for key in (k_min, k_max):
+                     width=7, anchor="w").pack(side="left")
+            for key in (k_min, k_max, k_float):
                 v = tk.StringVar(value=str(self.cfg.get(key, "—")))
                 self._limit_vars[key] = v
-                tk.Label(lim_row, textvariable=v,
-                         bg=C["card_alt"], fg=C["primary"],
-                         font=(_FONT_MONO, 9, "bold"),
-                         width=8, relief="flat", padx=4).pack(
-                    side="left", padx=(4, 0))
+                lbl = tk.Label(lim_row, textvariable=v,
+                               bg=C["card_alt"], fg=C["primary"],
+                               font=(_FONT_MONO, 9, "bold"),
+                               width=6, relief="flat", padx=3)
+                lbl.pack(side="left", padx=(4, 0))
+            # Simpan per cfg_key — dust punya 3 baris, simpan sebagai list
+            self._limit_rows.setdefault(cfg_key, []).append(lim_row)
 
         # ── Kontrol RS485 ─────────────────────────────────────────────────────
         ctrl_inner = self._card(right, "KONTROL RS485", C["text_muted"],
@@ -509,7 +644,12 @@ class SparingGUI:
         self._flat_btn(bar, "⛶  F11",
                        self._toggle_fullscreen,
                        C["bg"], C["text_muted"],
-                       pady=0).pack(side="right", padx=8, pady=3)
+                       pady=0).pack(side="right", padx=self._sp(6), pady=3)
+
+        self._flat_btn(bar, "⚙  Sensor",
+                       self._open_sensor_select,
+                       C["bg"], C["accent"],
+                       pady=0).pack(side="right", padx=(0, self._sp(2)), pady=3)
 
         # Tombol rahasia — terlihat seperti indikator biasa
         self._lock_btn_var = tk.StringVar(value="🔒")
@@ -531,39 +671,74 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     # WIDGET HELPERS
     # ═══════════════════════════════════════════════════════════════════════════
+    def _rounded_canvas(self, parent, card_bg: str,
+                        radius: int = None,
+                        outer_bg: str = None,
+                        **pack_kw) -> tuple:
+        """
+        Buat Canvas dengan latar sudut melengkung (smooth polygon).
+        Kembalikan (canvas, inner_frame).
+        canvas  — dipasang ke parent sesuai pack_kw
+        inner   — Frame tempat konten diletakkan
+        """
+        r        = radius   if radius   is not None else self._sp(16)
+        outer_bg = outer_bg if outer_bg is not None else C["bg"]
+        pad      = self._sp(2)
+
+        canvas = tk.Canvas(parent, bg=outer_bg,
+                           highlightthickness=0, bd=0)
+        if pack_kw:
+            canvas.pack(**pack_kw)
+
+        inner  = tk.Frame(canvas, bg=card_bg)
+        win_id = canvas.create_window(pad, pad, window=inner, anchor="nw")
+
+        def _draw(event=None):
+            w, h = canvas.winfo_width(), canvas.winfo_height()
+            if w < 4 or h < 4:
+                return
+            canvas.delete("rr")
+            pts = [
+                r, 0,   w-r, 0,   w, 0,   w, r,
+                w, h-r, w, h,     w-r, h, r, h,
+                0, h,   0, h-r,   0, r,   0, 0,
+            ]
+            canvas.create_polygon(pts, smooth=True,
+                                  fill=card_bg, outline="", tags="rr")
+            canvas.tag_lower("rr")
+            canvas.itemconfig(win_id,
+                              width=w  - pad * 2,
+                              height=h - pad * 2)
+
+        canvas.bind("<Configure>", _draw)
+        return canvas, inner
+
     def _card(self, parent, title: str, accent: str,
               **pack_kw) -> tk.Frame:
         """
-        Buat kartu putih dengan garis kiri berwarna.
-        Dikemas ke parent sesuai pack_kw.
+        Kartu putih sudut melengkung dengan accent bar atas dan judul.
         Kembalikan inner frame tempat konten diletakkan.
         """
-        # Shadow wrapper
-        shadow = tk.Frame(parent, bg=C["shadow"], padx=1, pady=1)
-        if pack_kw:
-            shadow.pack(**pack_kw)
-        self._last_card_shadow = shadow   # dipakai oleh limits wrapper
+        canvas, outer = self._rounded_canvas(
+            parent, C["card"], radius=self._sp(12), **pack_kw)
+        self._last_card_shadow = canvas   # dipakai oleh limits wrapper
 
-        outer = tk.Frame(shadow, bg=C["card"])
-        outer.pack(fill="both", expand=True)
-
-        # Left color bar
+        # Accent stripe tipis di atas
         tk.Frame(outer, bg=accent,
-                 width=self._sp(4)).pack(side="left", fill="y")
-
-        body = tk.Frame(outer, bg=C["card"])
-        body.pack(side="left", fill="both", expand=True)
+                 height=self._sp(3)).pack(fill="x")
 
         # Title row
-        tk.Label(body, text=title,
+        title_row = tk.Frame(outer, bg=C["card"])
+        title_row.pack(fill="x")
+        tk.Label(title_row, text=title,
                  bg=C["card"], fg=accent,
                  font=(_FONT_UI, self._fs(8), "bold"),
-                 padx=self._sp(10), pady=self._sp(7)).pack(anchor="w")
+                 padx=self._sp(10), pady=self._sp(6)).pack(side="left")
 
-        tk.Frame(body, bg=C["border"], height=1).pack(fill="x")
+        tk.Frame(outer, bg=C["border"], height=1).pack(fill="x")
 
         # Content frame
-        content = tk.Frame(body, bg=C["card"])
+        content = tk.Frame(outer, bg=C["card"])
         content.pack(fill="both", expand=True,
                      padx=self._sp(10), pady=self._sp(8))
         return content
@@ -601,6 +776,169 @@ class SparingGUI:
                       highlightbackground=C["border"],
                       highlightcolor=C["primary"])
         return tk.Button(parent, **kw)
+
+    # ── Sensor selection ──────────────────────────────────────────────────────
+    def apply_sensor_visibility(self) -> None:
+        """
+        Tampilkan/sembunyikan kartu sensor dan re-layout kolom agar tidak ada gap.
+        Kartu aktif selalu diisi berurutan dari kolom 0.
+        """
+        # ── Sensor utama (grid) ───────────────────────────────────────────────
+        row_frame = self._main_sensor_row
+        ordered = [
+            ("sensor_ph_enabled",    "ph"),
+            ("sensor_tss_enabled",   "tss"),
+            ("sensor_debit_enabled", "debit"),
+        ]
+
+        # Sembunyikan semua dulu dan reset bobot kolom
+        for i in range(3):
+            row_frame.columnconfigure(i, weight=0, minsize=0)
+        for cfg_key, _ in ordered:
+            card, *_ = self._sensor_cards[cfg_key]
+            card.grid_remove()
+
+        # Re-grid kartu aktif ke kolom berurutan (tanpa gap)
+        active_col = 0
+        for cfg_key, _ in ordered:
+            if self.cfg.get(cfg_key, True):
+                card, *_ = self._sensor_cards[cfg_key]
+                card.grid(row=0, column=active_col,
+                          padx=self._sp(6), sticky="nsew")
+                row_frame.columnconfigure(active_col, weight=1)
+                active_col += 1
+
+        # Sembunyikan/tampilkan baris utama jika tidak ada sensor aktif
+        any_main = active_col > 0
+        if any_main:
+            kw = dict(fill="x", padx=self._sp(14), pady=(self._sp(6), 0))
+            if self._dust_row_frame:
+                kw["before"] = self._dust_row_frame
+            self._main_sensor_row.pack(**kw)
+        else:
+            self._main_sensor_row.pack_forget()
+
+        # ── Dust row (pack) ───────────────────────────────────────────────────
+        if self._dust_row_frame:
+            if self.cfg.get("sensor_dust_enabled", True):
+                self._dust_row_frame.pack(fill="x",
+                                          padx=self._sp(14),
+                                          pady=(self._sp(4), 0),
+                                          before=self._body_frame)
+            else:
+                self._dust_row_frame.pack_forget()
+
+        # ── Batas — ikuti sensor yang aktif ──────────────────────────────────
+        self.apply_limits_visibility()
+
+    def apply_limits_visibility(self) -> None:
+        """Tampilkan baris batas hanya untuk sensor yang aktif."""
+        if not hasattr(self, "_limit_rows"):
+            return
+        for cfg_key, rows in self._limit_rows.items():
+            enabled = self.cfg.get(cfg_key, True)
+            for row in rows:
+                if enabled:
+                    row.pack(fill="x", pady=2)
+                else:
+                    row.pack_forget()
+
+    def _open_sensor_select(self) -> None:
+        """Dialog pilih sensor yang aktif — ditampilkan dan dikirim ke server."""
+        win = tk.Toplevel(self.root)
+        win.title("Pilihan Sensor")
+        win.configure(bg=C["panel"])
+        win.resizable(False, False)
+        win.grab_set()
+
+        win.update_idletasks()
+        w, h = self._sp(380), self._sp(340)
+        sx, sy = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        win.geometry(f"{w}x{h}+{(sx-w)//2}+{(sy-h)//2}")
+
+        tk.Frame(win, bg=C["primary"],
+                 height=self._sp(4)).pack(fill="x")
+        tk.Label(win, text="PILIH SENSOR AKTIF",
+                 bg=C["panel"], fg=C["text"],
+                 font=(_FONT_UI, self._fs(12), "bold"),
+                 padx=self._sp(16), pady=self._sp(12)).pack(anchor="w")
+        tk.Frame(win, bg=C["border"], height=1).pack(fill="x")
+
+        tk.Label(win,
+                 text="Sensor yang dinonaktifkan tidak akan\nditampilkan dan tidak dikirim ke server.",
+                 bg=C["panel"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(8)),
+                 justify="left").pack(anchor="w",
+                                      padx=self._sp(16), pady=(self._sp(10), self._sp(4)))
+
+        sensors = [
+            ("sensor_ph_enabled",    "pH",              C["s_ph"],    "#A8CCFF"),
+            ("sensor_tss_enabled",   "TSS (mg/L)",      C["s_tss"],   "#A0D8F0"),
+            ("sensor_debit_enabled", "Debit (m³/s)",    C["s_debit"], "#9AECD8"),
+            ("sensor_dust_enabled",  "Debu — PM2.5 / PM10 / PM100 (RK300-02)",
+             "#37474F", "#90A4AE"),
+        ]
+
+        check_vars = {}
+        for cfg_key, label, bg, lc in sensors:
+            var = tk.BooleanVar(value=self.cfg.get(cfg_key, True))
+            check_vars[cfg_key] = var
+
+            row = tk.Frame(win, bg=C["panel"],
+                           pady=self._sp(6), padx=self._sp(16))
+            row.pack(fill="x")
+
+            # Indikator warna
+            tk.Frame(row, bg=bg,
+                     width=self._sp(10), height=self._sp(10)).pack(
+                side="left", padx=(0, self._sp(10)))
+
+            tk.Label(row, text=label,
+                     bg=C["panel"], fg=C["text"],
+                     font=(_FONT_UI, self._fs(10))).pack(side="left", expand=True,
+                                                          anchor="w")
+
+            # Toggle switch (Checkbutton styled)
+            cb = tk.Checkbutton(
+                row, variable=var,
+                bg=C["panel"],
+                activebackground=C["panel"],
+                selectcolor=C["primary"],
+                fg=C["text_muted"],
+                font=(_FONT_UI, self._fs(9)),
+                relief="flat", cursor="hand2",
+            )
+            cb.pack(side="right")
+
+            tk.Frame(win, bg=C["border"], height=1).pack(
+                fill="x", padx=self._sp(16))
+
+        def _apply():
+            changed = False
+            for cfg_key, var in check_vars.items():
+                new_val = var.get()
+                if self.cfg.get(cfg_key, True) != new_val:
+                    self.cfg[cfg_key] = new_val
+                    changed = True
+            if changed:
+                save_config(self.cfg)
+                self.apply_sensor_visibility()
+                active = [s[1] for s in sensors
+                          if self.cfg.get(s[0], True)]
+                self.log(f"Sensor aktif: {', '.join(active) if active else '(tidak ada)'}")
+            win.destroy()
+
+        tk.Frame(win, bg=C["border"], height=1).pack(fill="x", pady=(self._sp(8), 0))
+        btn_bar = tk.Frame(win, bg=C["panel"],
+                           padx=self._sp(16), pady=self._sp(10))
+        btn_bar.pack(fill="x")
+        self._flat_btn(btn_bar, "✓  Terapkan",
+                       _apply, C["primary"], "white",
+                       pady=7).pack(side="left", padx=(0, self._sp(8)),
+                                    ipadx=self._sp(10))
+        self._flat_btn(btn_bar, "✕  Batal",
+                       win.destroy, C["bg"], C["text_muted"],
+                       pady=7).pack(side="left", ipadx=self._sp(10))
 
     # ── Lock / Unlock ─────────────────────────────────────────────────────────
     def _show_lock_dialog(self) -> None:
@@ -685,12 +1023,31 @@ class SparingGUI:
             self._proc_vars["ph"].set(f"{ph:.2f}")
             self._proc_vars["tss"].set(f"{tss:.2f}")
             self._proc_vars["debit"].set(f"{debit:.4f}")
+        if hasattr(self, "_last_proc_dust"):
+            pm25, pm10, pm100 = self._last_proc_dust
+            self._proc_vars["pm25"].set(f"{pm25:.1f}")
+            self._proc_vars["pm10"].set(f"{pm10:.1f}")
+            self._proc_vars["pm100"].set(f"{pm100:.1f}")
 
         # Tampilkan limits wrapper setelah status card
         if self._limits_wrapper and self._limits_pack_ref:
             self._limits_wrapper.pack(
                 fill="x", pady=(0, 8),
                 after=self._limits_pack_ref)
+            # Scroll ke card BATAS agar langsung terlihat
+            if self._right_canvas:
+                def _scroll_to_limits():
+                    try:
+                        c = self._right_canvas
+                        c.update_idletasks()
+                        total = c.bbox("all")
+                        if total and total[3] > 0:
+                            y_pos = self._limits_wrapper.winfo_y()
+                            fraction = y_pos / total[3]
+                            c.yview_moveto(max(0.0, fraction - 0.05))
+                    except Exception:
+                        pass
+                self._right_canvas.after(100, _scroll_to_limits)
 
         self.log("🔓 Tampilan data processed & batas diaktifkan")
 
@@ -724,6 +1081,9 @@ class SparingGUI:
         self._sensor_vars["ph"].set(f"{r.ph:.2f}")
         self._sensor_vars["tss"].set(f"{r.tss:.2f}")
         self._sensor_vars["debit"].set(f"{r.debit:.4f}")
+        self._sensor_vars["pm25"].set(f"{r.pm25:.1f}")
+        self._sensor_vars["pm10"].set(f"{r.pm10:.1f}")
+        self._sensor_vars["pm100"].set(f"{r.pm100:.1f}")
 
     def update_sensors_processed(self, ph: float, tss: float,
                                   debit: float) -> None:
@@ -734,6 +1094,16 @@ class SparingGUI:
         self._proc_vars["ph"].set(f"{ph:.2f}")
         self._proc_vars["tss"].set(f"{tss:.2f}")
         self._proc_vars["debit"].set(f"{debit:.4f}")
+
+    def update_dust_processed(self, pm25: float, pm10: float,
+                               pm100: float) -> None:
+        """Perbarui nilai processed debu — hanya ditampilkan jika unlocked."""
+        self._last_proc_dust = (pm25, pm10, pm100)
+        if not self._unlocked:
+            return
+        self._proc_vars["pm25"].set(f"{pm25:.1f}")
+        self._proc_vars["pm10"].set(f"{pm10:.1f}")
+        self._proc_vars["pm100"].set(f"{pm100:.1f}")
 
     def update_count(self, n: int, total: int = 30) -> None:
         self._count_var.set(f"{n} / {total}")
@@ -1042,8 +1412,54 @@ class SparingGUI:
             ("Slave ID pH  :",   "slave_id_ph"),
             ("Slave ID TSS :",   "slave_id_tss"),
             ("Slave ID Debit :", "slave_id_debit"),
+            ("Slave ID Debu :",  "slave_id_dust"),
         ]:
             _entry(label, key, 8)
+
+        # Faktor PM (hanya tampil jika sensor debu aktif)
+        if self.cfg.get("sensor_dust_enabled", True):
+            _section("FAKTOR PM DARI TSP")
+            tk.Label(form,
+                     text="PM2.5 = random(min, max) × TSP\n"
+                          "PM10  = random(min, max) × TSP",
+                     bg=C["bg"], fg=C["text_muted"],
+                     font=(_FONT_UI, self._fs(8))).grid(
+                row=row_i[0], column=0, columnspan=3,
+                sticky="w", pady=(0, 6))
+            row_i[0] += 1
+
+            # Header Min / Max
+            for col, txt in enumerate(["", "Min", "Max"]):
+                tk.Label(form, text=txt,
+                         bg=C["bg"], fg=C["text_muted"],
+                         font=(_FONT_UI, self._fs(9), "bold")).grid(
+                    row=row_i[0], column=col, sticky="w",
+                    padx=(0 if col == 0 else 10, 0), pady=2)
+            row_i[0] += 1
+
+            for label, key_min, key_max in [
+                ("Faktor PM2.5 :", "pm25_factor_min", "pm25_factor_max"),
+                ("Faktor PM10  :", "pm10_factor_min", "pm10_factor_max"),
+            ]:
+                tk.Label(form, text=label,
+                         bg=C["bg"], fg=C["text"],
+                         font=(_FONT_UI, self._fs(10))).grid(
+                    row=row_i[0], column=0, sticky="w", pady=self._sp(4))
+                for col, key in enumerate([key_min, key_max], start=1):
+                    v = tk.StringVar(value=str(self.cfg.get(key, "")))
+                    entry_vars[key] = v
+                    tk.Entry(form, textvariable=v,
+                             font=(_FONT_MONO, self._fs(10)), width=8,
+                             relief="flat", bd=0,
+                             bg=C["card"], fg=C["text"],
+                             insertbackground=C["primary"],
+                             highlightthickness=1,
+                             highlightbackground=C["border"],
+                             highlightcolor=C["primary"],
+                             justify="center").grid(
+                        row=row_i[0], column=col, sticky="w",
+                        padx=(10, 0), pady=4)
+                row_i[0] += 1
 
         # Server & UID
         _section("SERVER & IDENTITAS")
@@ -1069,7 +1485,7 @@ class SparingGUI:
             sticky="w", pady=(0, 6))
         row_i[0] += 1
 
-        for col, txt in enumerate(["Parameter", "Min", "Max"]):
+        for col, txt in enumerate(["Parameter", "Min", "Max", "± Variasi"]):
             tk.Label(form, text=txt,
                      bg=C["bg"], fg=C["text_muted"],
                      font=(_FONT_UI, self._fs(9), "bold")).grid(
@@ -1077,25 +1493,31 @@ class SparingGUI:
                 padx=(0 if col == 0 else 10, 0), pady=2)
         row_i[0] += 1
         tk.Frame(form, bg=C["border"], height=1).grid(
-            row=row_i[0], column=0, columnspan=3,
+            row=row_i[0], column=0, columnspan=4,
             sticky="ew", pady=(0, 4))
         row_i[0] += 1
 
-        for param, key_min, key_max in [
-            ("pH",    "limit_ph_min",    "limit_ph_max"),
-            ("TSS",   "limit_tss_min",   "limit_tss_max"),
-            ("Debit", "limit_debit_min", "limit_debit_max"),
-        ]:
+        limit_fields = [
+            ("sensor_ph_enabled",    "pH",    "limit_ph_min",    "limit_ph_max",    "limit_ph_float"),
+            ("sensor_tss_enabled",   "TSS",   "limit_tss_min",   "limit_tss_max",   "limit_tss_float"),
+            ("sensor_debit_enabled", "Debit", "limit_debit_min", "limit_debit_max", "limit_debit_float"),
+            ("sensor_dust_enabled",  "PM2.5", "limit_pm25_min",  "limit_pm25_max",  "limit_pm25_float"),
+            ("sensor_dust_enabled",  "PM10",  "limit_pm10_min",  "limit_pm10_max",  "limit_pm10_float"),
+            ("sensor_dust_enabled",  "PM100", "limit_pm100_min", "limit_pm100_max", "limit_pm100_float"),
+        ]
+        for cfg_key, param, key_min, key_max, key_float in limit_fields:
+            if not self.cfg.get(cfg_key, True):
+                continue   # sembunyikan jika sensor tidak aktif
             tk.Label(form, text=param,
                      bg=C["bg"], fg=C["text"],
                      font=(_FONT_UI, self._fs(10))).grid(
                 row=row_i[0], column=0, sticky="w",
                 pady=self._sp(4))
-            for col, key in enumerate([key_min, key_max], start=1):
+            for col, key in enumerate([key_min, key_max, key_float], start=1):
                 v = tk.StringVar(value=str(self.cfg.get(key, "")))
                 entry_vars[key] = v
                 tk.Entry(form, textvariable=v,
-                         font=(_FONT_MONO, self._fs(10)), width=10,
+                         font=(_FONT_MONO, self._fs(10)), width=8,
                          relief="flat", bd=0,
                          bg=C["card"], fg=C["text"],
                          insertbackground=C["primary"],
@@ -1112,11 +1534,16 @@ class SparingGUI:
         # Save handler
         def _save():
             int_keys   = {"baud_rate", "slave_id_ph",
-                          "slave_id_tss", "slave_id_debit"}
+                          "slave_id_tss", "slave_id_debit", "slave_id_dust"}
             float_keys = {
-                "limit_ph_min",    "limit_ph_max",
-                "limit_tss_min",   "limit_tss_max",
-                "limit_debit_min", "limit_debit_max",
+                "pm25_factor_min", "pm25_factor_max",
+                "pm10_factor_min", "pm10_factor_max",
+                "limit_ph_min",    "limit_ph_max",    "limit_ph_float",
+                "limit_tss_min",   "limit_tss_max",   "limit_tss_float",
+                "limit_debit_min", "limit_debit_max", "limit_debit_float",
+                "limit_pm25_min",  "limit_pm25_max",  "limit_pm25_float",
+                "limit_pm10_min",  "limit_pm10_max",  "limit_pm10_float",
+                "limit_pm100_min", "limit_pm100_max", "limit_pm100_float",
             }
             for key, v in entry_vars.items():
                 raw = v.get().strip()

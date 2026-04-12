@@ -890,3 +890,146 @@
 [09:29:04] INFO: [POST] 127.0.0.1:8000 → HTTP 200  {"message":"Data saved successfully"}
 [09:29:04] INFO: [POST] 127.0.0.1:8000 → HTTP 200  {"message":"Data saved successfully"}
 [09:29:04] INFO: ✓ [S1] Data terkirim (raw + processed)
+[10:33:59] INFO: pymodbus tersedia
+[10:33:59] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[10:33:59] WARNING: Gagal membuka port COM3
+[10:34:01] INFO: [SIM] Data 1/30 — pH=7.71  TSS=102.06 mg/L  Debit=0.0210 m³/s
+[10:34:01] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[10:34:03] INFO: Mengambil secret key dari server...
+[10:34:05] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[10:34:05] WARNING: Secret key 1 default digunakan
+[10:34:15] ERROR: Fetch key gagal (https://sparing.kemenlh.go.id/api/secret-sensor): HTTPSConnectionPool(host='sparing.kemenlh.go.id', port=443): Max retries exceeded with url: /api/secret-sensor (Caused by ConnectTimeoutError(<HTTPSConnection(host='sparing.kemenlh.go.id', port=443) at 0x19c1d18fa10>, 'Connection to sparing.kemenlh.go.id timed out. (connect timeout=10)'))
+[10:34:15] WARNING: Secret key 2 default digunakan
+[10:34:15] INFO: Secret key berhasil diperoleh
+[17:35:09] INFO: pymodbus tersedia
+[17:35:09] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[17:35:09] WARNING: Gagal membuka port COM3
+[17:35:11] INFO: [SIM] Data 1/30 — pH=7.56  TSS=101.11 mg/L  Debit=0.0216 m³/s
+[17:35:11] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[17:35:12] INFO: Mengambil secret key dari server...
+[17:35:14] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[17:35:14] WARNING: Secret key 1 default digunakan
+[17:38:11] INFO: pymodbus tersedia
+[17:38:11] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[17:38:11] WARNING: Gagal membuka port COM3
+[17:38:14] INFO: [SIM] Data 1/30 — pH=8.15  TSS=103.60 mg/L  Debit=0.0177 m³/s
+[17:38:14] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[17:38:15] INFO: Mengambil secret key dari server...
+[17:38:17] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[17:38:17] WARNING: Secret key 1 default digunakan
+[17:38:27] ERROR: Fetch key gagal (https://sparing.kemenlh.go.id/api/secret-sensor): HTTPSConnectionPool(host='sparing.kemenlh.go.id', port=443): Read timed out. (read timeout=10)
+[17:38:27] WARNING: Secret key 2 default digunakan
+[17:38:27] INFO: Secret key berhasil diperoleh
+[17:48:33] INFO: pymodbus tersedia
+[17:48:33] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[17:48:33] WARNING: Gagal membuka port COM3
+[17:48:35] INFO: [SIM] Data 1/30 — pH=7.17  TSS=109.83 mg/L  Debit=0.0289 m³/s
+[17:48:35] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[17:48:36] INFO: Mengambil secret key dari server...
+[17:48:38] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[17:48:38] WARNING: Secret key 1 default digunakan
+[17:48:49] ERROR: Fetch key gagal (https://sparing.kemenlh.go.id/api/secret-sensor): HTTPSConnectionPool(host='sparing.kemenlh.go.id', port=443): Read timed out. (read timeout=10)
+[17:48:49] WARNING: Secret key 2 default digunakan
+[17:48:49] INFO: Secret key berhasil diperoleh
+[11:36:33] INFO: pymodbus tersedia
+[11:36:33] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:36:33] WARNING: Gagal membuka port COM3
+[11:36:35] INFO: [SIM] Data 1/30 — pH=7.02  TSS=96.90 mg/L  Debit=0.0346 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:36:35] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:36:37] INFO: Mengambil secret key dari server...
+[11:36:39] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:36:39] WARNING: Secret key 1 default digunakan
+[11:36:49] ERROR: Fetch key gagal (https://sparing.kemenlh.go.id/api/secret-sensor): HTTPSConnectionPool(host='sparing.kemenlh.go.id', port=443): Read timed out. (read timeout=10)
+[11:36:49] WARNING: Secret key 2 default digunakan
+[11:36:49] INFO: Secret key berhasil diperoleh
+[11:48:46] INFO: pymodbus tersedia
+[11:48:46] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:48:46] WARNING: Gagal membuka port COM3
+[11:48:48] INFO: [SIM] Data 1/30 — pH=7.90  TSS=97.38 mg/L  Debit=0.0331 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:48:48] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:48:49] INFO: Mengambil secret key dari server...
+[11:48:51] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:48:51] WARNING: Secret key 1 default digunakan
+[11:49:02] ERROR: Fetch key gagal (https://sparing.kemenlh.go.id/api/secret-sensor): HTTPSConnectionPool(host='sparing.kemenlh.go.id', port=443): Read timed out. (read timeout=10)
+[11:49:02] WARNING: Secret key 2 default digunakan
+[11:49:02] INFO: Secret key berhasil diperoleh
+[11:55:54] INFO: pymodbus tersedia
+[11:55:54] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:55:54] WARNING: Gagal membuka port COM3
+[11:55:57] INFO: [SIM] Data 1/30 — pH=7.51  TSS=96.32 mg/L  Debit=0.0331 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:55:57] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:55:58] INFO: Mengambil secret key dari server...
+[11:56:00] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:56:00] WARNING: Secret key 1 default digunakan
+[11:22:54] INFO: pymodbus tersedia
+[11:22:55] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:22:55] WARNING: Gagal membuka port COM3
+[11:22:57] INFO: [SIM] Data 1/30 — pH=8.18  TSS=98.08 mg/L  Debit=0.0326 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:22:57] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:22:58] INFO: Mengambil secret key dari server...
+[11:23:00] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:23:00] WARNING: Secret key 1 default digunakan
+[11:23:01] INFO: Secret key berhasil diperoleh
+[11:31:50] INFO: pymodbus tersedia
+[11:31:50] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:31:50] WARNING: Gagal membuka port COM3
+[11:31:52] INFO: [SIM] Data 1/30 — pH=7.35  TSS=51.15 mg/L  Debit=0.0262 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:31:52] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:31:53] INFO: Mengambil secret key dari server...
+[11:31:55] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:31:55] WARNING: Secret key 1 default digunakan
+[11:31:55] INFO: Secret key berhasil diperoleh
+[11:35:28] INFO: pymodbus tersedia
+[11:35:28] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:35:28] WARNING: Gagal membuka port COM3
+[11:35:30] INFO: [SIM] Data 1/30 — pH=7.07  TSS=70.11 mg/L  Debit=0.0326 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:35:30] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:35:31] INFO: Mengambil secret key dari server...
+[11:35:33] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:35:33] WARNING: Secret key 1 default digunakan
+[11:35:33] INFO: Secret key berhasil diperoleh
+[11:37:43] INFO: pymodbus tersedia
+[11:37:43] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:37:43] WARNING: Gagal membuka port COM3
+[11:37:46] INFO: [SIM] Data 1/30 — pH=6.93  TSS=97.70 mg/L  Debit=0.0303 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:37:46] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:37:47] INFO: Mengambil secret key dari server...
+[11:37:49] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:37:49] WARNING: Secret key 1 default digunakan
+[11:37:49] INFO: Secret key berhasil diperoleh
+[11:39:26] INFO: pymodbus tersedia
+[11:39:26] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:39:26] WARNING: Gagal membuka port COM3
+[11:39:28] INFO: [SIM] Data 1/30 — pH=7.08  TSS=93.31 mg/L  Debit=0.0218 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:39:28] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:39:29] INFO: Mengambil secret key dari server...
+[11:39:31] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:39:31] WARNING: Secret key 1 default digunakan
+[11:39:31] INFO: Secret key berhasil diperoleh
+[11:45:26] INFO: pymodbus tersedia
+[11:45:26] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:45:26] WARNING: Gagal membuka port COM3
+[11:45:29] INFO: [SIM] Data 1/30 — pH=7.18  TSS=82.06 mg/L  Debit=0.0332 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:45:29] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:45:30] INFO: Mengambil secret key dari server...
+[11:45:32] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:45:32] WARNING: Secret key 1 default digunakan
+[11:45:32] INFO: Secret key berhasil diperoleh
+[11:50:23] INFO: pymodbus tersedia
+[11:50:23] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:50:23] WARNING: Gagal membuka port COM3
+[11:50:25] INFO: [SIM] Data 1/30 — pH=8.49  TSS=100.06 mg/L  Debit=0.0112 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:50:25] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:50:26] INFO: Mengambil secret key dari server...
+[11:50:28] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:50:28] WARNING: Secret key 1 default digunakan
+[11:50:28] INFO: Secret key berhasil diperoleh
+[11:52:27] INFO: pymodbus tersedia
+[11:52:27] ERROR: could not open port 'COM3': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)
+[11:52:27] WARNING: Gagal membuka port COM3
+[11:52:30] INFO: [SIM] Data 1/30 — pH=7.00  TSS=103.46 mg/L  Debit=0.0322 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³
+[11:52:30] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[11:52:31] INFO: Mengambil secret key dari server...
+[11:52:33] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+[11:52:33] WARNING: Secret key 1 default digunakan
+[11:52:33] INFO: Secret key berhasil diperoleh
