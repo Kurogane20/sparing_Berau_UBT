@@ -677,6 +677,31 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     # WIDGET HELPERS
     # ═══════════════════════════════════════════════════════════════════════════
+    def _make_dialog(self, w: int, h: int, title: str = "") -> tk.Toplevel:
+        """
+        Buat Toplevel yang selalu muncul di atas window utama,
+        termasuk saat fullscreen di embedded display (Orange Pi / RPi).
+        """
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        win.configure(bg=C["bg"])
+        win.resizable(False, False)
+        win.transient(self.root)
+
+        sx = self.root.winfo_screenwidth()
+        sy = self.root.winfo_screenheight()
+        x  = (sx - w) // 2
+        y  = (sy - h) // 2
+        win.geometry(f"{w}x{h}+{x}+{y}")
+
+        win.attributes("-topmost", True)   # selalu di atas fullscreen
+        win.update_idletasks()
+        win.lift()
+        win.focus_force()
+        win.grab_set()
+        return win
+
+    # ═══════════════════════════════════════════════════════════════════════════
     def _rounded_canvas(self, parent, card_bg: str,
                         radius: int = None,
                         outer_bg: str = None,
@@ -867,16 +892,9 @@ class SparingGUI:
 
     def _open_sensor_select(self) -> None:
         """Dialog pilih sensor yang aktif — ditampilkan dan dikirim ke server."""
-        win = tk.Toplevel(self.root)
-        win.title("Pilihan Sensor")
-        win.configure(bg=C["panel"])
-        win.resizable(False, False)
-        win.grab_set()
-
-        win.update_idletasks()
         w, h = self._sp(380), self._sp(340)
-        sx, sy = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
-        win.geometry(f"{w}x{h}+{(sx-w)//2}+{(sy-h)//2}")
+        win = self._make_dialog(w, h, "Pilihan Sensor")
+        win.configure(bg=C["panel"])
 
         tk.Frame(win, bg=C["primary"],
                  height=self._sp(4)).pack(fill="x")
@@ -969,40 +987,14 @@ class SparingGUI:
             self._lock()
             return
 
-        win = tk.Toplevel(self.root)
-        win.title("")
+        w, h = self._sp(300), self._sp(210)
+        win = self._make_dialog(w, h)
         win.configure(bg=C["panel"])
-        win.resizable(False, False)
-        win.transient(self.root)
-        win.overrideredirect(True)   # hapus title bar OS agar tampil bersih
+        inner_win = win   # alias agar kode di bawah tidak perlu diubah
 
-        # Posisikan di tengah layar
-        w, h = self._sp(300), self._sp(220)
-        sx = self.root.winfo_screenwidth()
-        sy = self.root.winfo_screenheight()
-        win.geometry(f"{w}x{h}+{(sx-w)//2}+{(sy-h)//2}")
-        win.update_idletasks()
-        win.lift()
-        win.focus_force()
-        win.grab_set()
-
-        # Border tipis di sekeliling dialog
-        tk.Frame(win, bg=C["border"], bd=0).place(x=0, y=0, relwidth=1, relheight=1)
-        inner_win = tk.Frame(win, bg=C["panel"])
-        inner_win.place(x=1, y=1,
-                        width=w - 2, height=h - 2)
-
-        # Accent bar atas + tombol X
-        top_bar = tk.Frame(inner_win, bg=C["primary"])
-        top_bar.pack(fill="x")
-        tk.Frame(top_bar, bg=C["primary"],
-                 height=self._sp(4)).pack(fill="x", side="left", expand=True)
-        close_x = tk.Label(top_bar, text="✕",
-                            bg=C["primary"], fg="white",
-                            font=(_FONT_UI, self._fs(10)),
-                            cursor="hand2", padx=self._sp(8))
-        close_x.pack(side="right")
-        close_x.bind("<Button-1>", lambda e: win.destroy())
+        # Accent bar atas
+        tk.Frame(win, bg=C["primary"],
+                 height=self._sp(4)).pack(fill="x")
 
         tk.Label(inner_win, text="Masukkan PIN",
                  bg=C["panel"], fg=C["text"],
@@ -1241,11 +1233,8 @@ class SparingGUI:
 
     # ── Scan port dialog ──────────────────────────────────────────────────────
     def _scan_ports_dialog(self) -> None:
-        win = tk.Toplevel(self.root)
-        win.title("Scan Port USB RS485")
+        win = self._make_dialog(self._sp(460), self._sp(360), "Scan Port USB RS485")
         win.configure(bg=C["bg"])
-        win.geometry(f"{self._sp(460)}x{self._sp(360)}")
-        win.grab_set()
 
         tk.Frame(win, bg=C["primary"],
                  height=self._sp(4)).pack(fill="x")
@@ -1329,11 +1318,8 @@ class SparingGUI:
 
     # ── Settings dialog ───────────────────────────────────────────────────────
     def _open_settings(self) -> None:
-        win = tk.Toplevel(self.root)
-        win.title("Pengaturan")
+        win = self._make_dialog(self._sp(600), self._sp(540), "Pengaturan")
         win.configure(bg=C["bg"])
-        win.geometry(f"{self._sp(600)}x{self._sp(540)}")
-        win.grab_set()
 
         tk.Frame(win, bg=C["primary"],
                  height=self._sp(4)).pack(fill="x")
