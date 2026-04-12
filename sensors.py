@@ -43,18 +43,35 @@ class SensorReader:
         if not HAS_MODBUS or self.cfg.get("simulate_sensors"):
             return
 
-        port = self.cfg["serial_port"]
+        use_hat = self.cfg.get("use_rs485_hat", False)
 
-        # Auto-deteksi jika port masih default atau kosong
-        if not port or port in ("COM3", "/dev/ttyUSB0"):
-            detected = detect_usb_rs485()
-            if detected:
-                port = detected
-                self.cfg["serial_port"] = port
-                save_config(self.cfg)
-
-        try:
-            self._mb = ModbusSerialClient(
+        if use_hat:
+            # ── Mode HAT (UART GPIO) ──────────────────────────────────────────
+            # Port UART HAT: /dev/ttyAMA0 (RPi), /dev/ttyS0, /dev/serial0
+            port = self.cfg.get("rs485_hat_port", "/dev/ttyAMA0")
+            kwargs = dict(
+                port     = port,
+                baudrate = self.cfg["baud_rate"],
+                stopbits = 1,
+                bytesize = 8,
+                parity   = "N",
+                timeout  = 1,
+                # Kontrol DE/RE via RTS — aktif saat kirim, nonaktif saat terima
+                rts_level_for_send = True,
+                rts_level_for_recv = False,
+                broadcast_enable   = False,
+            )
+            mode_label = "RS485 HAT"
+        else:
+            # ── Mode USB RS485 adapter ────────────────────────────────────────
+            port = self.cfg["serial_port"]
+            if not port or port in ("COM3", "/dev/ttyUSB0"):
+                detected = detect_usb_rs485()
+                if detected:
+                    port = detected
+                    self.cfg["serial_port"] = port
+                    save_config(self.cfg)
+            kwargs = dict(
                 port     = port,
                 baudrate = self.cfg["baud_rate"],
                 stopbits = 1,
@@ -62,15 +79,34 @@ class SensorReader:
                 parity   = "N",
                 timeout  = 1,
             )
+            mode_label = "USB RS485"
+
+        try:
+            self._mb = ModbusSerialClient(**kwargs)
             if self._mb.connect():
-                log.info(f"USB RS485 terhubung — port: {port}  baud: {self.cfg['baud_rate']}")
+                log.info(f"{mode_label} terhubung — port: {port}  baud: {self.cfg['baud_rate']}")
                 self._port_ok = True
             else:
-                log.warning(f"Gagal membuka port {port}")
+                log.warning(f"{mode_label} gagal membuka port {port}")
                 self._mb      = None
                 self._port_ok = False
         except Exception as e:
-            log.error(f"USB RS485 init error: {e}")
+            # rts_level_for_send tidak didukung semua versi pymodbus —
+            # coba ulang tanpa parameter RTS
+            if use_hat and "rts_level" in str(e):
+                log.warning(f"HAT RTS tidak didukung pymodbus versi ini, coba tanpa RTS: {e}")
+                try:
+                    kwargs.pop("rts_level_for_send", None)
+                    kwargs.pop("rts_level_for_recv", None)
+                    kwargs.pop("broadcast_enable",   None)
+                    self._mb = ModbusSerialClient(**kwargs)
+                    if self._mb.connect():
+                        log.info(f"RS485 HAT terhubung (tanpa RTS) — port: {port}")
+                        self._port_ok = True
+                        return
+                except Exception as e2:
+                    log.error(f"RS485 HAT fallback gagal: {e2}")
+            log.error(f"{mode_label} init error: {e}")
             self._on_error(f"[RS485] Gagal inisialisasi port {port}: {e}")
             self._mb      = None
             self._port_ok = False

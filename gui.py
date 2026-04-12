@@ -1383,10 +1383,29 @@ class SparingGUI:
                    sticky="ew", padx=(10, 0), pady=3)
             row_i[0] += 1
 
-        # USB RS485
-        _section("USB RS485")
+        # RS485 — USB adapter atau HAT
+        _section("KONEKSI RS485")
 
-        tk.Label(form, text="Port Serial :",
+        # Toggle USB / HAT
+        hat_var = tk.BooleanVar(value=self.cfg.get("use_rs485_hat", False))
+        hat_frame = tk.Frame(form, bg=C["bg"])
+        hat_frame.grid(row=row_i[0], column=0, columnspan=3,
+                       sticky="w", pady=(0, self._sp(6)))
+        tk.Radiobutton(hat_frame, text="USB RS485 Adapter  (CH340/CP210x/FT232)",
+                       variable=hat_var, value=False,
+                       bg=C["bg"], fg=C["text"], selectcolor=C["card"],
+                       activebackground=C["bg"],
+                       font=(_FONT_UI, self._fs(9))).pack(anchor="w")
+        tk.Radiobutton(hat_frame, text="RS485 HAT  (Waveshare/UART GPIO)",
+                       variable=hat_var, value=True,
+                       bg=C["bg"], fg=C["text"], selectcolor=C["card"],
+                       activebackground=C["bg"],
+                       font=(_FONT_UI, self._fs(9))).pack(anchor="w")
+        entry_vars["use_rs485_hat"] = hat_var
+        row_i[0] += 1
+
+        # Port USB
+        tk.Label(form, text="Port USB :",
                  bg=C["bg"], fg=C["text"],
                  font=(_FONT_UI, 10), anchor="w").grid(
             row=row_i[0], column=0, sticky="w", pady=4)
@@ -1432,6 +1451,16 @@ class SparingGUI:
                      font=(_FONT_MONO, self._fs(10))).grid(
             row=row_i[0], column=1, sticky="w",
             padx=(10, 0), pady=4)
+        row_i[0] += 1
+
+        # Port HAT
+        _entry("Port HAT :", "rs485_hat_port", 18)
+        tk.Label(form,
+                 text="Contoh: /dev/ttyAMA0  /dev/ttyS0  /dev/serial0",
+                 bg=C["bg"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(7))).grid(
+            row=row_i[0], column=1, columnspan=2,
+            sticky="w", padx=(10, 0), pady=(0, self._sp(4)))
         row_i[0] += 1
 
         # Slave IDs
@@ -1574,6 +1603,10 @@ class SparingGUI:
                 "limit_pm100_min", "limit_pm100_max", "limit_pm100_float",
             }
             for key, v in entry_vars.items():
+                # BooleanVar (use_rs485_hat) — simpan langsung
+                if isinstance(v, tk.BooleanVar):
+                    self.cfg[key] = v.get()
+                    continue
                 raw = v.get().strip()
                 try:
                     if key in int_keys:

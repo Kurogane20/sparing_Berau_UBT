@@ -18,9 +18,15 @@ DATA_BUFFER_FILE = Path("data_buffer.json")
 
 # ─── Nilai default ────────────────────────────────────────────────────────────
 DEFAULT_CONFIG: dict = {
-    # Serial / Modbus USB RS485
+    # Serial / Modbus
+    # use_rs485_hat = True  → pakai UART HAT (Waveshare/PiHAT) via GPIO
+    #                          port biasanya /dev/ttyAMA0 atau /dev/ttyS0
+    #                          RTS digunakan untuk kontrol sinyal DE/RE otomatis
+    # use_rs485_hat = False → pakai USB RS485 adapter (CH340/CP210x/FT232/PL2303)
     "serial_port":            "/dev/ttyUSB0" if IS_LINUX else "COM3",
     "baud_rate":              9600,
+    "use_rs485_hat":          False,   # True = RS485 HAT via UART GPIO
+    "rs485_hat_port":         "/dev/ttyAMA0",   # port UART HAT (Linux)
     "slave_id_ph":            2,
     "slave_id_tss":           10,
     "slave_id_debit":         1,
