@@ -72,12 +72,14 @@ class SparingGUI:
     def _calc_scale(self) -> None:
         """
         Hitung faktor skala dari resolusi layar aktual vs referensi 1280×720.
-        sc < 1 → layar kecil (misalnya 1024×600), sc > 1 → layar besar (1920×1080).
+        sc < 1 → layar kecil (7-inch 800×480), sc > 1 → layar besar (1920×1080).
+        Layar ≤ 600px tinggi dianggap layar kecil — gunakan layout kompak.
         """
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
-        self._sc       = max(0.55, min(sw / _REF_W, sh / _REF_H, 1.8))
-        self._r_width  = self._sp(270)   # lebar panel kanan
+        self._sc       = max(0.50, min(sw / _REF_W, sh / _REF_H, 1.8))
+        self._small    = sh <= 600          # True untuk layar 7-inch
+        self._r_width  = self._sp(240) if self._small else self._sp(270)
 
     def _fs(self, n: int) -> int:
         """Skala font size — minimal 7pt."""
@@ -143,7 +145,8 @@ class SparingGUI:
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x")
 
         row = tk.Frame(hdr, bg=C["panel"])
-        row.pack(fill="x", padx=self._sp(18), pady=self._sp(5))
+        row.pack(fill="x", padx=self._sp(18),
+                 pady=(self._sp(3) if self._small else self._sp(5)))
 
         # ── Logo ──────────────────────────────────────────────────────────────
         self._add_logo(row)
@@ -284,45 +287,51 @@ class SparingGUI:
         Selalu menampilkan raw (besar) dan processed (kecil, dimask saat terkunci).
         """
         canvas, inner = self._rounded_canvas(
-            parent, bg, radius=self._sp(22))
+            parent, bg, radius=self._sp(18))
 
-        # ── Konten ───────────────────────────────────────────────────────────
-        # Parameter label
+        # Tinggi minimum agar card tidak collapse di layar kecil
+        canvas.configure(height=self._sp(100 if self._small else 130))
+
+        py_top  = self._sp(4 if self._small else 6)
+        py_bot  = self._sp(4 if self._small else 6)
+        f_label = self._fs(8 if self._small else 9)
+        f_raw   = self._fs(20 if self._small else 26)
+        f_unit  = self._fs(7 if self._small else 8)
+        f_proc  = self._fs(11 if self._small else 14)
+        px_sep  = self._sp(14 if self._small else 20)
+
         tk.Label(inner, text=label,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, self._fs(9), "bold")).pack(
-            pady=(self._sp(6), 0))
+                 font=(_FONT_UI, f_label, "bold")).pack(
+            pady=(py_top, 0))
 
-        # ── Raw value ─────────────────────────────────────────────────────────
         raw_var = tk.StringVar(value="—")
         self._sensor_vars[key] = raw_var
         tk.Label(inner, textvariable=raw_var,
                  bg=bg, fg="white",
-                 font=(_FONT_MONO, self._fs(26), "bold")).pack(
+                 font=(_FONT_MONO, f_raw, "bold")).pack(
             pady=(self._sp(1), 0))
 
         tk.Label(inner, text=unit,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, self._fs(8))).pack()
+                 font=(_FONT_UI, f_unit)).pack()
 
-        # ── Separator ─────────────────────────────────────────────────────────
         tk.Frame(inner, bg=label_color, height=1).pack(
-            fill="x", padx=self._sp(20),
-            pady=(self._sp(4), self._sp(2)))
+            fill="x", padx=px_sep,
+            pady=(self._sp(3), self._sp(2)))
 
-        # ── Processed value ───────────────────────────────────────────────────
         proc_row = tk.Frame(inner, bg=bg)
-        proc_row.pack(pady=(0, self._sp(6)))
+        proc_row.pack(pady=(0, py_bot))
 
         tk.Label(proc_row, text="PROCESSED",
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, self._fs(7), "bold")).pack()
+                 font=(_FONT_UI, self._fs(6), "bold")).pack()
 
         proc_var = tk.StringVar(value="●  ●  ●")
         self._proc_vars[key] = proc_var
         tk.Label(proc_row, textvariable=proc_var,
                  bg=bg, fg=label_color,
-                 font=(_FONT_MONO, self._fs(14), "bold")).pack()
+                 font=(_FONT_MONO, f_proc, "bold")).pack()
 
         return canvas
 
@@ -341,7 +350,7 @@ class SparingGUI:
         tk.Label(wrap, text="KUALITAS UDARA  (RK300-02)",
                  bg=C["bg"], fg=C["text_muted"],
                  font=(_FONT_UI, self._fs(7), "bold")).pack(
-            anchor="w", pady=(0, self._sp(3)))
+            anchor="w", pady=(0, self._sp(2 if self._small else 3)))
 
         row = tk.Frame(wrap, bg=C["bg"])
         row.pack(fill="x")
@@ -364,34 +373,37 @@ class SparingGUI:
     def _dust_card(self, parent, key: str, label: str,
                    unit: str, bg: str, label_color: str) -> tk.Canvas:
         """Kartu kompak untuk sensor debu (PM) — lebih kecil dari sensor utama."""
-        canvas, inner = self._rounded_canvas(parent, bg, radius=self._sp(16))
+        canvas, inner = self._rounded_canvas(parent, bg, radius=self._sp(14))
 
-        # Label parameter
+        # Tinggi minimum agar card tidak collapse
+        canvas.configure(height=self._sp(80 if self._small else 110))
+
+        py_top = self._sp(3 if self._small else 5)
+        py_bot = self._sp(3 if self._small else 5)
+        f_val  = self._fs(14 if self._small else 18)
+
         tk.Label(inner, text=label,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, self._fs(8), "bold")).pack(
-            pady=(self._sp(5), 0))
+                 font=(_FONT_UI, self._fs(7), "bold")).pack(
+            pady=(py_top, 0))
 
-        # Nilai raw — lebih kecil dari sensor utama
         raw_var = tk.StringVar(value="—")
         self._sensor_vars[key] = raw_var
         tk.Label(inner, textvariable=raw_var,
                  bg=bg, fg="white",
-                 font=(_FONT_MONO, self._fs(18), "bold")).pack(
+                 font=(_FONT_MONO, f_val, "bold")).pack(
             pady=(self._sp(1), 0))
 
         tk.Label(inner, text=unit,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, self._fs(7))).pack()
+                 font=(_FONT_UI, self._fs(6))).pack()
 
-        # Separator tipis
         tk.Frame(inner, bg=label_color, height=1).pack(
-            fill="x", padx=self._sp(16),
-            pady=(self._sp(3), self._sp(2)))
+            fill="x", padx=self._sp(12),
+            pady=(self._sp(2), self._sp(1)))
 
-        # Processed (masked saat terkunci)
         proc_row = tk.Frame(inner, bg=bg)
-        proc_row.pack(pady=(0, self._sp(5)))
+        proc_row.pack(pady=(0, py_bot))
 
         tk.Label(proc_row, text="PROCESSED",
                  bg=bg, fg=label_color,
@@ -401,7 +413,7 @@ class SparingGUI:
         self._proc_vars[key] = proc_var
         tk.Label(proc_row, textvariable=proc_var,
                  bg=bg, fg=label_color,
-                 font=(_FONT_MONO, self._fs(11), "bold")).pack()
+                 font=(_FONT_MONO, self._fs(9 if self._small else 11), "bold")).pack()
 
         return canvas
 
@@ -809,24 +821,26 @@ class SparingGUI:
                 active_col += 1
 
         # Sembunyikan/tampilkan baris utama jika tidak ada sensor aktif
+        # pack_forget dulu agar re-pack dengan before= selalu bekerja
         any_main = active_col > 0
+        self._main_sensor_row.pack_forget()
         if any_main:
-            kw = dict(fill="x", padx=self._sp(14), pady=(self._sp(6), 0))
-            if self._dust_row_frame:
+            kw = dict(fill="x", padx=self._sp(14),
+                      pady=(self._sp(4 if self._small else 6), 0))
+            if self._dust_row_frame and self.cfg.get("sensor_dust_enabled", True):
                 kw["before"] = self._dust_row_frame
+            elif self._body_frame:
+                kw["before"] = self._body_frame
             self._main_sensor_row.pack(**kw)
-        else:
-            self._main_sensor_row.pack_forget()
 
         # ── Dust row (pack) ───────────────────────────────────────────────────
         if self._dust_row_frame:
+            self._dust_row_frame.pack_forget()
             if self.cfg.get("sensor_dust_enabled", True):
                 self._dust_row_frame.pack(fill="x",
                                           padx=self._sp(14),
-                                          pady=(self._sp(4), 0),
+                                          pady=(self._sp(3 if self._small else 4), 0),
                                           before=self._body_frame)
-            else:
-                self._dust_row_frame.pack_forget()
 
         # ── Batas — ikuti sensor yang aktif ──────────────────────────────────
         self.apply_limits_visibility()
