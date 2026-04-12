@@ -1456,7 +1456,8 @@ class SparingGUI:
         # Port HAT
         _entry("Port HAT :", "rs485_hat_port", 18)
         tk.Label(form,
-                 text="Contoh: /dev/ttyAMA0  /dev/ttyS0  /dev/serial0",
+                 text="Orange Pi 3B: /dev/ttyS1  atau  /dev/ttyS7\n"
+                      "Orange Pi lain: /dev/ttyS3  /dev/ttyS0",
                  bg=C["bg"], fg=C["text_muted"],
                  font=(_FONT_UI, self._fs(7))).grid(
             row=row_i[0], column=1, columnspan=2,

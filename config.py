@@ -19,14 +19,17 @@ DATA_BUFFER_FILE = Path("data_buffer.json")
 # ─── Nilai default ────────────────────────────────────────────────────────────
 DEFAULT_CONFIG: dict = {
     # Serial / Modbus
-    # use_rs485_hat = True  → pakai UART HAT (Waveshare/PiHAT) via GPIO
-    #                          port biasanya /dev/ttyAMA0 atau /dev/ttyS0
-    #                          RTS digunakan untuk kontrol sinyal DE/RE otomatis
+    # use_rs485_hat = True  → pakai UART HAT via GPIO (kontrol DE/RE via RTS)
     # use_rs485_hat = False → pakai USB RS485 adapter (CH340/CP210x/FT232/PL2303)
+    #
+    # Port UART Orange Pi (tergantung model):
+    #   3B (digunakan): /dev/ttyS1 (40-pin GPIO)  atau  /dev/ttyS7
+    #   Zero / Zero 2 : /dev/ttyS1  atau  /dev/ttyS3
+    #   5 / 5 Plus    : /dev/ttyS0  atau  /dev/ttyS3  atau  /dev/ttyS5
     "serial_port":            "/dev/ttyUSB0" if IS_LINUX else "COM3",
     "baud_rate":              9600,
     "use_rs485_hat":          False,   # True = RS485 HAT via UART GPIO
-    "rs485_hat_port":         "/dev/ttyAMA0",   # port UART HAT (Linux)
+    "rs485_hat_port":         "/dev/ttyS1",   # Orange Pi 3B — pin 8/10 (TX/RX)
     "slave_id_ph":            2,
     "slave_id_tss":           10,
     "slave_id_debit":         1,
@@ -136,8 +139,17 @@ def scan_serial_ports() -> List[str]:
         ports = [p.device for p in list_ports.comports()]
     if not ports:
         if IS_LINUX:
-            for pattern in ("/dev/ttyUSB*", "/dev/ttyACM*", "/dev/ttyS*"):
+            for pattern in (
+                "/dev/ttyUSB*",   # USB RS485 adapter
+                "/dev/ttyACM*",   # USB CDC
+                "/dev/ttyS*",     # UART onboard (ttyS0-ttyS9, Orange Pi)
+                "/dev/ttyAMA*",   # UART ARM (Raspberry Pi)
+                "/dev/serial*",   # symlink serial
+            ):
                 ports.extend(sorted(glob.glob(pattern)))
+            # Hapus duplikat, pertahankan urutan
+            seen: set = set()
+            ports = [p for p in ports if not (p in seen or seen.add(p))]
         else:
             ports = [f"COM{i}" for i in range(1, 17)]
     return ports
