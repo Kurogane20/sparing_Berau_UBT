@@ -129,8 +129,8 @@ class SparingGUI:
         self._build_header()
         self._build_sensor_row()
         self._build_dust_row()
+        self._build_footer()   # harus sebelum body (body pakai expand=True)
         self._build_body()
-        self._build_footer()
 
     # ═══════════════════════════════════════════════════════════════════════════
     # HEADER
