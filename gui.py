@@ -289,9 +289,6 @@ class SparingGUI:
         canvas, inner = self._rounded_canvas(
             parent, bg, radius=self._sp(18))
 
-        # Tinggi minimum agar card tidak collapse di layar kecil
-        canvas.configure(height=self._sp(100 if self._small else 130))
-
         py_top  = self._sp(4 if self._small else 6)
         py_bot  = self._sp(4 if self._small else 6)
         f_label = self._fs(8 if self._small else 9)
@@ -374,9 +371,6 @@ class SparingGUI:
                    unit: str, bg: str, label_color: str) -> tk.Canvas:
         """Kartu kompak untuk sensor debu (PM) — lebih kecil dari sensor utama."""
         canvas, inner = self._rounded_canvas(parent, bg, radius=self._sp(14))
-
-        # Tinggi minimum agar card tidak collapse
-        canvas.configure(height=self._sp(80 if self._small else 110))
 
         py_top = self._sp(3 if self._small else 5)
         py_bot = self._sp(3 if self._small else 5)
@@ -705,8 +699,9 @@ class SparingGUI:
         inner  = tk.Frame(canvas, bg=card_bg)
         win_id = canvas.create_window(pad, pad, window=inner, anchor="nw")
 
-        def _draw(event=None):
-            w, h = canvas.winfo_width(), canvas.winfo_height()
+        def _redraw():
+            w = canvas.winfo_width()
+            h = canvas.winfo_height()
             if w < 4 or h < 4:
                 return
             canvas.delete("rr")
@@ -719,10 +714,23 @@ class SparingGUI:
                                   fill=card_bg, outline="", tags="rr")
             canvas.tag_lower("rr")
             canvas.itemconfig(win_id,
-                              width=w  - pad * 2,
+                              width=w - pad * 2,
                               height=h - pad * 2)
 
-        canvas.bind("<Configure>", _draw)
+        def _on_canvas_resize(event=None):
+            # Lebar canvas berubah → sesuaikan lebar inner frame
+            canvas.itemconfig(win_id, width=canvas.winfo_width() - pad * 2)
+            canvas.after_idle(_redraw)
+
+        def _on_inner_resize(event=None):
+            # Konten inner frame berubah → sesuaikan tinggi canvas
+            req_h = inner.winfo_reqheight() + pad * 2
+            if req_h > 4 and abs(canvas.winfo_height() - req_h) > 1:
+                canvas.configure(height=req_h)
+            canvas.after_idle(_redraw)
+
+        canvas.bind("<Configure>", _on_canvas_resize)
+        inner.bind("<Configure>",  _on_inner_resize)
         return canvas, inner
 
     def _card(self, parent, title: str, accent: str,
@@ -965,29 +973,49 @@ class SparingGUI:
         win.title("")
         win.configure(bg=C["panel"])
         win.resizable(False, False)
-        win.grab_set()
+        win.transient(self.root)
+        win.overrideredirect(True)   # hapus title bar OS agar tampil bersih
 
         # Posisikan di tengah layar
-        win.update_idletasks()
-        w, h = self._sp(320), self._sp(200)
+        w, h = self._sp(300), self._sp(220)
         sx = self.root.winfo_screenwidth()
         sy = self.root.winfo_screenheight()
         win.geometry(f"{w}x{h}+{(sx-w)//2}+{(sy-h)//2}")
+        win.update_idletasks()
+        win.lift()
+        win.focus_force()
+        win.grab_set()
 
-        tk.Frame(win, bg=C["primary"], height=self._sp(4)).pack(fill="x")
+        # Border tipis di sekeliling dialog
+        tk.Frame(win, bg=C["border"], bd=0).place(x=0, y=0, relwidth=1, relheight=1)
+        inner_win = tk.Frame(win, bg=C["panel"])
+        inner_win.place(x=1, y=1,
+                        width=w - 2, height=h - 2)
 
-        tk.Label(win, text="🔒  Masukkan PIN",
+        # Accent bar atas + tombol X
+        top_bar = tk.Frame(inner_win, bg=C["primary"])
+        top_bar.pack(fill="x")
+        tk.Frame(top_bar, bg=C["primary"],
+                 height=self._sp(4)).pack(fill="x", side="left", expand=True)
+        close_x = tk.Label(top_bar, text="✕",
+                            bg=C["primary"], fg="white",
+                            font=(_FONT_UI, self._fs(10)),
+                            cursor="hand2", padx=self._sp(8))
+        close_x.pack(side="right")
+        close_x.bind("<Button-1>", lambda e: win.destroy())
+
+        tk.Label(inner_win, text="Masukkan PIN",
                  bg=C["panel"], fg=C["text"],
-                 font=(_FONT_UI, self._fs(12), "bold")).pack(
-            pady=(self._sp(20), self._sp(8)))
+                 font=(_FONT_UI, self._fs(11), "bold")).pack(
+            pady=(self._sp(14), self._sp(6)))
 
-        tk.Label(win, text="PIN diperlukan untuk melihat data processed & batas",
+        tk.Label(inner_win, text="Diperlukan untuk melihat data processed",
                  bg=C["panel"], fg=C["text_muted"],
                  font=(_FONT_UI, self._fs(8))).pack(
-            pady=(0, self._sp(12)))
+            pady=(0, self._sp(10)))
 
         pin_var = tk.StringVar()
-        entry = tk.Entry(win, textvariable=pin_var,
+        entry = tk.Entry(inner_win, textvariable=pin_var,
                          show="●", font=(_FONT_MONO, self._fs(16)),
                          width=10, justify="center",
                          relief="flat", bd=0,
@@ -1000,9 +1028,9 @@ class SparingGUI:
         entry.focus_set()
 
         err_var = tk.StringVar(value="")
-        tk.Label(win, textvariable=err_var,
+        tk.Label(inner_win, textvariable=err_var,
                  bg=C["panel"], fg=C["offline"],
-                 font=(_FONT_UI, self._fs(9))).pack(pady=(self._sp(6), 0))
+                 font=(_FONT_UI, self._fs(9))).pack(pady=(self._sp(4), 0))
 
         def _try_unlock(event=None):
             correct = str(self.cfg.get("secret_pin", "1234"))
@@ -1015,7 +1043,7 @@ class SparingGUI:
 
         entry.bind("<Return>", _try_unlock)
 
-        btn_row = tk.Frame(win, bg=C["panel"])
+        btn_row = tk.Frame(inner_win, bg=C["panel"])
         btn_row.pack(pady=(self._sp(8), 0))
         self._flat_btn(btn_row, "Buka", _try_unlock,
                        C["primary"], "white", pady=6).pack(
