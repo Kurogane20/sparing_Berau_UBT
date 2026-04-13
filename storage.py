@@ -63,8 +63,9 @@ class DataStorage:
 
     def flush_s1_env(self, net) -> int:
         """
-        Kirim ulang entri Server 1 format baru (pm + noise per 1 menit).
-        Setiap entri berisi jwt_env.
+        Kirim ulang entri Server 1 format baru (raw JSON per 1 menit).
+        Setiap entri berisi body_s1 (raw JSON string).
+        Entri format lama (jwt_env / jwt1_raw) dibuang otomatis.
         """
         entries = self._load()
         if not entries:
@@ -72,9 +73,9 @@ class DataStorage:
         remaining, sent = [], 0
         url = net.cfg["server_url1"]
         for e in entries:
-            jwt = e.get("jwt_env", "")
+            jwt = e.get("jwt_s1", "")
             if not jwt:
-                sent += 1   # buang entri kosong
+                sent += 1   # buang entri format lama / kosong
                 continue
             if net.post(url, json.dumps({"token": jwt})):
                 sent += 1

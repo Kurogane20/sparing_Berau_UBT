@@ -264,7 +264,8 @@ class SparingApp:
                      noise: float, timestamp: float) -> None:
         """
         Kirim data lingkungan (debu + noise) ke Server 1 setiap 1 menit.
-        Format: uid, pm_25, pm_10, tsp, noise, datetime_unix, link_video_id.
+        Format: raw JSON langsung (uid, pm_25, pm_10, tsp, noise, temp,
+                datetime_unix, link_video_id) — tanpa JWT wrapper.
         Jika offline atau gagal, simpan ke buffer untuk dikirim ulang.
         """
         link_video_id = self.cfg.get("link_video_id", "")
@@ -274,9 +275,11 @@ class SparingApp:
             self._log("[S1] JWT gagal — secret key belum ada, data dibuang")
             return
 
+        body = json.dumps({"token": jwt})
+
         online = self.net.check_internet()
         if not online:
-            self.storage_s1.save(jwt_env=jwt)
+            self.storage_s1.save(jwt_s1=jwt)
             return
 
         # Kirim ulang buffer lama
@@ -284,8 +287,7 @@ class SparingApp:
         if flushed:
             self._log(f"[S1] {flushed} data lama dari buffer berhasil dikirim ulang")
 
-        ok = self.net.post(self.cfg["server_url1"],
-                           json.dumps({"token": jwt}))
+        ok = self.net.post(self.cfg["server_url1"], body)
         self.root.after(0, self.gui.update_connection, "server1", ok)
 
         if ok:
@@ -295,7 +297,7 @@ class SparingApp:
                       f"(PM2.5={pm25} PM10={pm10} TSP={tsp} Noise={noise} dB)")
         else:
             self._log("✗ [S1] Gagal — disimpan ke buffer")
-            self.storage_s1.save(jwt_env=jwt)
+            self.storage_s1.save(jwt_s1=jwt)
 
         self.root.after(0, self.gui.update_buffer,
                         self.storage_s1.count() + self.storage_s2.count())
