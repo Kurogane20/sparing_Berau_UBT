@@ -370,7 +370,7 @@ class SparingGUI:
         self._sensor_cards["sensor_dust_enabled"] = (wrap,)
 
     def _build_noise_row(self) -> None:
-        """Baris kartu sensor kebisingan (Sound Level Meter)."""
+        """Baris kartu sensor kebisingan — nilai instan (1 menit) dan Leq (10 menit)."""
         wrap = tk.Frame(self.root, bg=C["bg"])
         wrap.pack(fill="x", padx=self._sp(14), pady=(self._sp(3), 0))
         self._noise_row_frame = wrap
@@ -382,10 +382,75 @@ class SparingGUI:
                  font=(_FONT_UI, self._fs(7), "bold")).pack(
             anchor="w", pady=(0, self._sp(2)))
 
-        card = self._dust_card(wrap, "noise", "NOISE", "dB",
-                               "#4A148C", "#CE93D8")
-        card.pack(fill="x", padx=self._sp(6))
+        bg, lc = "#4A148C", "#CE93D8"
+        canvas, inner = self._rounded_canvas(wrap, bg, radius=self._sp(14))
+        canvas.pack(fill="x", padx=self._sp(6))
         self._sensor_cards["sensor_noise_enabled"] = (wrap,)
+
+        py    = self._sp(3 if self._small else 5)
+        f_val = self._fs(14 if self._small else 18)
+
+        # ── Baris atas: Instan | Leq ──────────────────────────────────────────
+        top_row = tk.Frame(inner, bg=bg)
+        top_row.pack(fill="x")
+
+        # Kolom kiri — nilai instan (per 1 menit)
+        left = tk.Frame(top_row, bg=bg)
+        left.pack(side="left", expand=True, fill="both", padx=(self._sp(8), 0))
+
+        tk.Label(left, text="INSTAN",
+                 bg=bg, fg=lc,
+                 font=(_FONT_UI, self._fs(7), "bold")).pack(pady=(py, 0))
+
+        instant_var = tk.StringVar(value="—")
+        self._sensor_vars["noise_instant"] = instant_var
+        tk.Label(left, textvariable=instant_var,
+                 bg=bg, fg="white",
+                 font=(_FONT_MONO, f_val, "bold")).pack(pady=(self._sp(1), 0))
+
+        tk.Label(left, text="dB",
+                 bg=bg, fg=lc,
+                 font=(_FONT_UI, self._fs(6))).pack(pady=(0, py))
+
+        # Pemisah vertikal
+        tk.Frame(top_row, bg=lc, width=1).pack(
+            side="left", fill="y", pady=self._sp(8))
+
+        # Kolom kanan — Leq 10 menit
+        right = tk.Frame(top_row, bg=bg)
+        right.pack(side="left", expand=True, fill="both", padx=(0, self._sp(8)))
+
+        tk.Label(right, text="Leq  (10 min)",
+                 bg=bg, fg=lc,
+                 font=(_FONT_UI, self._fs(7), "bold")).pack(pady=(py, 0))
+
+        leq_var = tk.StringVar(value="—")
+        self._sensor_vars["noise_leq"] = leq_var
+        tk.Label(right, textvariable=leq_var,
+                 bg=bg, fg="white",
+                 font=(_FONT_MONO, f_val, "bold")).pack(pady=(self._sp(1), 0))
+
+        tk.Label(right, text="dB",
+                 bg=bg, fg=lc,
+                 font=(_FONT_UI, self._fs(6))).pack(pady=(0, py))
+
+        # ── Baris bawah: Processed Leq (tampil saat unlocked) ────────────────
+        tk.Frame(inner, bg=lc, height=1).pack(
+            fill="x", padx=self._sp(12),
+            pady=(self._sp(2), self._sp(1)))
+
+        proc_row = tk.Frame(inner, bg=bg)
+        proc_row.pack(pady=(0, py))
+
+        tk.Label(proc_row, text="PROCESSED  Leq",
+                 bg=bg, fg=lc,
+                 font=(_FONT_UI, self._fs(6), "bold")).pack()
+
+        proc_var = tk.StringVar(value="●  ●  ●")
+        self._proc_vars["noise"] = proc_var
+        tk.Label(proc_row, textvariable=proc_var,
+                 bg=bg, fg=lc,
+                 font=(_FONT_MONO, self._fs(9 if self._small else 11), "bold")).pack()
 
     def _dust_card(self, parent, key: str, label: str,
                    unit: str, bg: str, label_color: str) -> tk.Canvas:
@@ -1181,7 +1246,7 @@ class SparingGUI:
         self._sensor_vars["pm25"].set(f"{r.pm25:.1f}")
         self._sensor_vars["pm10"].set(f"{r.pm10:.1f}")
         self._sensor_vars["pm100"].set(f"{r.pm100:.1f}")
-        self._sensor_vars["noise"].set(f"{r.noise:.1f}")
+        self._sensor_vars["noise_leq"].set(f"{r.noise:.1f}")
 
     def update_sensors_processed(self, ph: float, tss: float,
                                   debit: float) -> None:
@@ -1203,8 +1268,12 @@ class SparingGUI:
         self._proc_vars["pm10"].set(f"{pm10:.1f}")
         self._proc_vars["pm100"].set(f"{pm100:.1f}")
 
+    def update_noise_instant(self, value: float) -> None:
+        """Perbarui nilai noise instan (per 1 menit) — selalu ditampilkan."""
+        self._sensor_vars["noise_instant"].set(f"{value:.1f}")
+
     def update_noise_processed(self, noise: float) -> None:
-        """Perbarui nilai processed kebisingan — hanya ditampilkan jika unlocked."""
+        """Perbarui nilai processed Leq — hanya ditampilkan jika unlocked."""
         self._last_proc_noise = noise
         if not self._unlocked:
             return

@@ -4,6 +4,7 @@ Menjalankan dua background thread (sensor & network) dan GUI di main thread.
 """
 
 import json
+import math
 import queue
 import random
 import time
@@ -48,6 +49,8 @@ class SparingApp:
         self.last_tx    = 0.0
         self._running   = True
         self._q: queue.Queue = queue.Queue()
+        self._noise_buf: List[float] = []         # buffer sampel noise 1 menit
+        self._noise_buf_lock = threading.Lock()   # proteksi akses antar-thread
 
     def start(self) -> None:
         # Inisialisasi sensor reader (gagal graceful → simulasi aktif)
@@ -69,6 +72,8 @@ class SparingApp:
                          daemon=True, name="sensor").start()
         threading.Thread(target=self._network_loop,
                          daemon=True, name="network").start()
+        threading.Thread(target=self._noise_loop,
+                         daemon=True, name="noise").start()
 
         # Pompa antrian log ke GUI
         self._pump_log()
@@ -125,6 +130,13 @@ class SparingApp:
                 port_ok = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
 
                 self.root.after(0, self.gui.update_connection, "rs485", port_ok)
+
+                # ── Leq noise — dari buffer yang diisi _noise_loop (per 1 menit) ─
+                if self.cfg.get("sensor_noise_enabled", True):
+                    with self._noise_buf_lock:
+                        buf_copy = list(self._noise_buf)
+                    r.noise = self._compute_leq(buf_copy)
+
                 self.batch.append(r)
                 n        = len(self.batch)
                 mode_tag = "" if use_hw else "[SIM] "
@@ -139,7 +151,7 @@ class SparingApp:
                     f"pH={r.ph:.2f}  TSS={r.tss:.2f} mg/L  "
                     f"Debit={r.debit:.4f} m³/s  "
                     f"PM2.5={r.pm25:.1f}  PM10={r.pm10:.1f}  PM100={r.pm100:.1f} ug/m³  "
-                    f"Noise={r.noise:.1f} dB"
+                    f"Leq={r.noise:.1f} dB"
                 )
                 self.root.after(0, self.gui.update_sensors, r)
                 self.root.after(0, self.gui.update_sensors_processed,
@@ -194,6 +206,39 @@ class SparingApp:
             except Exception as e:
                 self._log(f"[ERROR] network loop: {e}")
             time.sleep(30)
+
+    # ── Noise loop — sampling noise setiap 1 menit untuk Leq ─────────────────
+    def _noise_loop(self) -> None:
+        """
+        Sampel noise sensor setiap 60 detik (1 menit).
+        Leq 10 menit = rata-rata energi dari 10 sampel terakhir.
+        Leq = 10 × log10( (1/N) × Σ 10^(Li/10) )
+        """
+        _SAMPLE_SEC = 60      # interval sampling (detik)
+        _WINDOW_SEC = 600     # jendela Leq (detik) — 10 menit
+        _MAX_N      = _WINDOW_SEC // _SAMPLE_SEC   # 10 sampel
+
+        time.sleep(2)   # tunggu GUI & sensor reader siap
+
+        while self._running:
+            if not self.cfg.get("sensor_noise_enabled", True):
+                time.sleep(_SAMPLE_SEC)
+                continue
+            try:
+                use_hw = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
+                noise  = (self.sensor_rdr.read_noise_safe()
+                          if use_hw
+                          else round(random.uniform(40.0, 80.0), 1))
+                if noise > 0:
+                    with self._noise_buf_lock:
+                        self._noise_buf.append(noise)
+                        if len(self._noise_buf) > _MAX_N:
+                            self._noise_buf.pop(0)   # rolling window
+                # Tampilkan nilai instan ke GUI
+                self.root.after(0, self.gui.update_noise_instant, noise)
+            except Exception as e:
+                self._log(f"[ERROR] noise loop: {e}")
+            time.sleep(_SAMPLE_SEC)
 
     # ── Kirim batch 30 data ────────────────────────────────────────────────────
     # ── Kirim ke Server 1 — setiap pembacaan (per 2 menit) ───────────────────
@@ -295,6 +340,20 @@ class SparingApp:
 
         # Perbarui secret key setelah setiap siklus kirim
         threading.Thread(target=self.net.fetch_all_keys, daemon=True).start()
+
+    # ── Leq — equivalent continuous sound level ───────────────────────────────
+    @staticmethod
+    def _compute_leq(values: List[float]) -> float:
+        """
+        Hitung Leq dari daftar nilai dB.
+        Leq = 10 × log10( (1/N) × Σ 10^(Li/10) )
+        Nilai 0.0 dilewati (data tidak valid / sensor belum siap).
+        """
+        valid = [v for v in values if v > 0]
+        if not valid:
+            return 0.0
+        mean_energy = sum(10 ** (v / 10) for v in valid) / len(valid)
+        return round(10 * math.log10(mean_energy), 1)
 
     # ── Simulasi data sensor (tanpa hardware) ──────────────────────────────────
     @staticmethod

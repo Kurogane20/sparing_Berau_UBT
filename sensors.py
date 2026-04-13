@@ -10,6 +10,7 @@ Sensor yang didukung:
 import inspect
 import random
 import struct
+import threading
 import time
 import logging
 from typing import Optional
@@ -36,6 +37,7 @@ class SensorReader:
         self._mb       = None
         self._port_ok  = False
         self._on_error = on_error or (lambda msg: None)
+        self._lock     = threading.Lock()   # proteksi akses Modbus antar-thread
         self._connect()
 
     # ── Koneksi Modbus ────────────────────────────────────────────────────────
@@ -303,22 +305,27 @@ class SensorReader:
             self._on_error(f"[SENSOR] Baca Noise gagal: {e}")
         return 0.0
 
+    def read_noise_safe(self) -> float:
+        """Baca noise dengan lock — aman dipanggil dari thread terpisah."""
+        with self._lock:
+            return self._read_noise()
+
     # ── Baca semua sensor ─────────────────────────────────────────────────────
     def read_all(self) -> SensorReading:
         reading = SensorReading(timestamp=time.time())
-        if self.cfg.get("sensor_ph_enabled", True):
-            reading.ph    = self._read_ph()
-            time.sleep(0.1)
-        if self.cfg.get("sensor_tss_enabled", True):
-            reading.tss   = self._read_tss()
-            time.sleep(0.1)
-        if self.cfg.get("sensor_debit_enabled", True):
-            reading.debit = self._read_debit()
-            time.sleep(0.1)
-        if self.cfg.get("sensor_dust_enabled", True):
-            reading.pm25, reading.pm10, reading.pm100 = self._read_dust()
-        if self.cfg.get("sensor_noise_enabled", True):
-            reading.noise = self._read_noise()
+        with self._lock:
+            if self.cfg.get("sensor_ph_enabled", True):
+                reading.ph    = self._read_ph()
+                time.sleep(0.1)
+            if self.cfg.get("sensor_tss_enabled", True):
+                reading.tss   = self._read_tss()
+                time.sleep(0.1)
+            if self.cfg.get("sensor_debit_enabled", True):
+                reading.debit = self._read_debit()
+                time.sleep(0.1)
+            if self.cfg.get("sensor_dust_enabled", True):
+                reading.pm25, reading.pm10, reading.pm100 = self._read_dust()
+            # noise tidak dibaca di sini — dihandle oleh _noise_loop di app.py
         return reading
 
     def close(self) -> None:
