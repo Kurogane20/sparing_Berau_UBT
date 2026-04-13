@@ -196,16 +196,14 @@ class NetworkManager:
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
             return ""
         payload = {
-            "uid": self.cfg["uid1"],
-            "data": [{
-                "pm_25":         round(pm25,  1),
-                "pm_10":         round(pm10,  1),
-                "tsp":           round(tsp,   1),
-                "noise":         round(noise, 1),
-                "temp":          0,
-                "datetime_unix": int(timestamp),
-                "link_video_id": link_video_id,
-            }],
+            "uid":           self.cfg["uid1"],
+            "pm_25":         round(pm25,  1),
+            "pm_10":         round(pm10,  1),
+            "tsp":           round(tsp,   1),
+            "noise":         round(noise, 1),
+            "temp":          0,
+            "datetime_unix": int(timestamp),
+            "link_video_id": link_video_id,
         }
         try:
             return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
