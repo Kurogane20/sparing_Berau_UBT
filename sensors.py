@@ -269,7 +269,7 @@ class SensorReader:
         try:
             r = self._rhr(1, 3, self.cfg["slave_id_dust"])
             if not r.isError():
-                pm100 = round(r.registers[2] + self.cfg["offset_pm100"], 1)
+                pm100 = round(r.registers[1] + self.cfg["offset_pm100"], 1)
                 pm25, pm10 = self._calc_pm_from_tsp(pm100)
                 return pm25, pm10, pm100
             else:
