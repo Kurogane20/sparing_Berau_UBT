@@ -103,7 +103,7 @@ class NetworkManager:
 
     def _apply_limits(self, ph: float, tss: float, debit: float,
                       pm25: float = 0.0, pm10: float = 0.0,
-                      pm100: float = 0.0):
+                      pm100: float = 0.0, noise: float = 0.0):
         """Terapkan batas min/max dengan variasi fluktuatif ke semua parameter."""
         c = self.cfg
         ph_out    = self._cap_fluctuate(ph,    c["limit_ph_min"],    c["limit_ph_max"],    c.get("limit_ph_float",    0.3))
@@ -112,7 +112,8 @@ class NetworkManager:
         pm25_out  = self._cap_fluctuate(pm25,  c["limit_pm25_min"],  c["limit_pm25_max"],  c.get("limit_pm25_float",  10.0))
         pm10_out  = self._cap_fluctuate(pm10,  c["limit_pm10_min"],  c["limit_pm10_max"],  c.get("limit_pm10_float",  10.0))
         pm100_out = self._cap_fluctuate(pm100, c["limit_pm100_min"], c["limit_pm100_max"], c.get("limit_pm100_float", 10.0))
-        return ph_out, tss_out, debit_out, pm25_out, pm10_out, pm100_out
+        noise_out = self._cap_fluctuate(noise, c.get("limit_noise_min", 0.0), c.get("limit_noise_max", 120.0), c.get("limit_noise_float", 2.0))
+        return ph_out, tss_out, debit_out, pm25_out, pm10_out, pm100_out, noise_out
 
     def _build_row(self, r: SensorReading, processed: bool = False) -> dict:
         """
@@ -124,11 +125,12 @@ class NetworkManager:
         cfg = self.cfg
 
         if processed:
-            ph, tss, debit, pm25, pm10, pm100 = self._apply_limits(
-                r.ph, r.tss, r.debit, r.pm25, r.pm10, r.pm100)
+            ph, tss, debit, pm25, pm10, pm100, noise = self._apply_limits(
+                r.ph, r.tss, r.debit, r.pm25, r.pm10, r.pm100, r.noise)
         else:
             ph, tss, debit = r.ph, r.tss, r.debit
             pm25, pm10, pm100 = r.pm25, r.pm10, r.pm100
+            noise = r.noise
 
         if cfg.get("sensor_ph_enabled",    True):
             row["pH"]    = round(ph,    2)
@@ -140,6 +142,8 @@ class NetworkManager:
             row["pm25"]  = round(pm25,  1)
             row["pm10"]  = round(pm10,  1)
             row["pm100"] = round(pm100, 1)
+        if cfg.get("sensor_noise_enabled", True):
+            row["noise"] = round(noise, 1)
         return row
 
     def _make_jwt_raw(self, uid: str, key: str,
@@ -184,8 +188,8 @@ class NetworkManager:
 
     # Alias lama agar tidak ada error jika masih dipanggil
     def get_processed(self, r: SensorReading) -> tuple:
-        """Kembalikan (ph, tss, debit, pm25, pm10, pm100) setelah filter — untuk GUI."""
-        return self._apply_limits(r.ph, r.tss, r.debit, r.pm25, r.pm10, r.pm100)
+        """Kembalikan (ph, tss, debit, pm25, pm10, pm100, noise) setelah filter — untuk GUI."""
+        return self._apply_limits(r.ph, r.tss, r.debit, r.pm25, r.pm10, r.pm100, r.noise)
 
     def create_jwt1(self, batch: List[SensorReading]) -> str:
         return self.create_jwt1_raw(batch)

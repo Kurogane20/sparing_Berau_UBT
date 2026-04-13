@@ -53,7 +53,8 @@ class SparingGUI:
         self._conn_labels:  dict = {}      # alias untuk update_connection()
         self._limit_vars:   dict = {}      # key → StringVar batas S2
         self._sensor_cards: dict = {}      # cfg_key → (canvas, col, row_frame)
-        self._dust_row_frame: tk.Frame = None  # baris kartu debu
+        self._dust_row_frame:  tk.Frame = None  # baris kartu debu
+        self._noise_row_frame: tk.Frame = None  # baris kartu noise
 
         self._unlocked:        bool      = False
         self._lock_btn_var:    tk.StringVar = None   # set saat build footer
@@ -129,6 +130,7 @@ class SparingGUI:
         self._build_header()
         self._build_sensor_row()
         self._build_dust_row()
+        self._build_noise_row()
         self._build_footer()   # harus sebelum body (body pakai expand=True)
         self._build_body()
 
@@ -367,6 +369,24 @@ class SparingGUI:
             row.columnconfigure(col, weight=1)
         self._sensor_cards["sensor_dust_enabled"] = (wrap,)
 
+    def _build_noise_row(self) -> None:
+        """Baris kartu sensor kebisingan (Sound Level Meter)."""
+        wrap = tk.Frame(self.root, bg=C["bg"])
+        wrap.pack(fill="x", padx=self._sp(14), pady=(self._sp(3), 0))
+        self._noise_row_frame = wrap
+        if not self.cfg.get("sensor_noise_enabled", True):
+            wrap.pack_forget()
+
+        tk.Label(wrap, text="KEBISINGAN  (Sound Level Meter)",
+                 bg=C["bg"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(7), "bold")).pack(
+            anchor="w", pady=(0, self._sp(2)))
+
+        card = self._dust_card(wrap, "noise", "NOISE", "dB",
+                               "#4A148C", "#CE93D8")
+        card.pack(fill="x", padx=self._sp(6))
+        self._sensor_cards["sensor_noise_enabled"] = (wrap,)
+
     def _dust_card(self, parent, key: str, label: str,
                    unit: str, bg: str, label_color: str) -> tk.Canvas:
         """Kartu kompak untuk sensor debu (PM) — lebih kecil dari sensor utama."""
@@ -573,6 +593,7 @@ class SparingGUI:
             ("sensor_dust_enabled",  "PM2.5", "limit_pm25_min",  "limit_pm25_max",  "limit_pm25_float"),
             ("sensor_dust_enabled",  "PM10",  "limit_pm10_min",  "limit_pm10_max",  "limit_pm10_float"),
             ("sensor_dust_enabled",  "PM100", "limit_pm100_min", "limit_pm100_max", "limit_pm100_float"),
+            ("sensor_noise_enabled", "Noise", "limit_noise_min", "limit_noise_max", "limit_noise_float"),
         ]:
             lim_row = tk.Frame(inner3, bg=C["card"])
             tk.Label(lim_row, text=param,
@@ -885,6 +906,8 @@ class SparingGUI:
                       pady=(self._sp(4 if self._small else 6), 0))
             if self._dust_row_frame and self.cfg.get("sensor_dust_enabled", True):
                 kw["before"] = self._dust_row_frame
+            elif self._noise_row_frame and self.cfg.get("sensor_noise_enabled", True):
+                kw["before"] = self._noise_row_frame
             elif self._body_frame:
                 kw["before"] = self._body_frame
             self._main_sensor_row.pack(**kw)
@@ -893,10 +916,23 @@ class SparingGUI:
         if self._dust_row_frame:
             self._dust_row_frame.pack_forget()
             if self.cfg.get("sensor_dust_enabled", True):
-                self._dust_row_frame.pack(fill="x",
-                                          padx=self._sp(14),
-                                          pady=(self._sp(3 if self._small else 4), 0),
-                                          before=self._body_frame)
+                kw_dust = dict(fill="x",
+                               padx=self._sp(14),
+                               pady=(self._sp(3 if self._small else 4), 0))
+                if self._noise_row_frame and self.cfg.get("sensor_noise_enabled", True):
+                    kw_dust["before"] = self._noise_row_frame
+                else:
+                    kw_dust["before"] = self._body_frame
+                self._dust_row_frame.pack(**kw_dust)
+
+        # ── Noise row (pack) ──────────────────────────────────────────────────
+        if self._noise_row_frame:
+            self._noise_row_frame.pack_forget()
+            if self.cfg.get("sensor_noise_enabled", True):
+                self._noise_row_frame.pack(fill="x",
+                                           padx=self._sp(14),
+                                           pady=(self._sp(3 if self._small else 4), 0),
+                                           before=self._body_frame)
 
         # ── Batas — ikuti sensor yang aktif ──────────────────────────────────
         self.apply_limits_visibility()
@@ -940,6 +976,8 @@ class SparingGUI:
             ("sensor_debit_enabled", "Debit (m³/s)",    C["s_debit"], "#9AECD8"),
             ("sensor_dust_enabled",  "Debu — PM2.5 / PM10 / PM100 (RK300-02)",
              "#37474F", "#90A4AE"),
+            ("sensor_noise_enabled", "Kebisingan — Noise dB (Sound Level Meter)",
+             "#4A148C", "#CE93D8"),
         ]
 
         check_vars = {}
@@ -1085,6 +1123,8 @@ class SparingGUI:
             self._proc_vars["pm25"].set(f"{pm25:.1f}")
             self._proc_vars["pm10"].set(f"{pm10:.1f}")
             self._proc_vars["pm100"].set(f"{pm100:.1f}")
+        if hasattr(self, "_last_proc_noise"):
+            self._proc_vars["noise"].set(f"{self._last_proc_noise:.1f}")
 
         # Tampilkan limits wrapper setelah status card
         if self._limits_wrapper and self._limits_pack_ref:
@@ -1141,6 +1181,7 @@ class SparingGUI:
         self._sensor_vars["pm25"].set(f"{r.pm25:.1f}")
         self._sensor_vars["pm10"].set(f"{r.pm10:.1f}")
         self._sensor_vars["pm100"].set(f"{r.pm100:.1f}")
+        self._sensor_vars["noise"].set(f"{r.noise:.1f}")
 
     def update_sensors_processed(self, ph: float, tss: float,
                                   debit: float) -> None:
@@ -1161,6 +1202,13 @@ class SparingGUI:
         self._proc_vars["pm25"].set(f"{pm25:.1f}")
         self._proc_vars["pm10"].set(f"{pm10:.1f}")
         self._proc_vars["pm100"].set(f"{pm100:.1f}")
+
+    def update_noise_processed(self, noise: float) -> None:
+        """Perbarui nilai processed kebisingan — hanya ditampilkan jika unlocked."""
+        self._last_proc_noise = noise
+        if not self._unlocked:
+            return
+        self._proc_vars["noise"].set(f"{noise:.1f}")
 
     def update_count(self, n: int, total: int = 30) -> None:
         self._count_var.set(f"{n} / {total}")
@@ -1492,10 +1540,11 @@ class SparingGUI:
         # Slave IDs
         _section("ID SLAVE SENSOR  (MODBUS RTU)")
         for label, key in [
-            ("Slave ID pH  :",   "slave_id_ph"),
-            ("Slave ID TSS :",   "slave_id_tss"),
-            ("Slave ID Debit :", "slave_id_debit"),
-            ("Slave ID Debu :",  "slave_id_dust"),
+            ("Slave ID pH  :",    "slave_id_ph"),
+            ("Slave ID TSS :",    "slave_id_tss"),
+            ("Slave ID Debit :",  "slave_id_debit"),
+            ("Slave ID Debu :",   "slave_id_dust"),
+            ("Slave ID Noise :",  "slave_id_noise"),
         ]:
             _entry(label, key, 8)
 
@@ -1587,6 +1636,7 @@ class SparingGUI:
             ("sensor_dust_enabled",  "PM2.5", "limit_pm25_min",  "limit_pm25_max",  "limit_pm25_float"),
             ("sensor_dust_enabled",  "PM10",  "limit_pm10_min",  "limit_pm10_max",  "limit_pm10_float"),
             ("sensor_dust_enabled",  "PM100", "limit_pm100_min", "limit_pm100_max", "limit_pm100_float"),
+            ("sensor_noise_enabled", "Noise", "limit_noise_min", "limit_noise_max", "limit_noise_float"),
         ]
         for cfg_key, param, key_min, key_max, key_float in limit_fields:
             if not self.cfg.get(cfg_key, True):
@@ -1617,7 +1667,8 @@ class SparingGUI:
         # Save handler
         def _save():
             int_keys   = {"baud_rate", "slave_id_ph",
-                          "slave_id_tss", "slave_id_debit", "slave_id_dust"}
+                          "slave_id_tss", "slave_id_debit",
+                          "slave_id_dust", "slave_id_noise"}
             float_keys = {
                 "pm25_factor_min", "pm25_factor_max",
                 "pm10_factor_min", "pm10_factor_max",
@@ -1627,6 +1678,7 @@ class SparingGUI:
                 "limit_pm25_min",  "limit_pm25_max",  "limit_pm25_float",
                 "limit_pm10_min",  "limit_pm10_max",  "limit_pm10_float",
                 "limit_pm100_min", "limit_pm100_max", "limit_pm100_float",
+                "limit_noise_min", "limit_noise_max", "limit_noise_float",
             }
             for key, v in entry_vars.items():
                 # BooleanVar (use_rs485_hat) — simpan langsung

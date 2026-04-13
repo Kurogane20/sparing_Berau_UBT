@@ -279,6 +279,30 @@ class SensorReader:
             self._on_error(f"[SENSOR] Baca Debu gagal: {e}")
         return (0.0, 0.0, 0.0)
 
+    # ── Noise (Sound Level Meter) ─────────────────────────────────────────────
+    def _read_noise(self) -> float:
+        """
+        Slave ID = slave_id_noise (default 4).
+        Register address=0, count=1:
+          reg[0] / 10 = noise level (dB)
+        """
+        if self._mb is None:
+            return round(random.uniform(40.0, 80.0), 1)
+        try:
+            r = self._rhr(0, 1, self.cfg["slave_id_noise"])
+            if not r.isError():
+                raw   = r.registers[0]
+                noise = round(raw / 10 + self.cfg.get("offset_noise", 0.0), 1)
+                return noise
+            else:
+                msg = f"[SENSOR] Noise isError: {r}"
+                log.error(msg)
+                self._on_error(msg)
+        except Exception as e:
+            log.error(f"Baca Noise gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Noise gagal: {e}")
+        return 0.0
+
     # ── Baca semua sensor ─────────────────────────────────────────────────────
     def read_all(self) -> SensorReading:
         reading = SensorReading(timestamp=time.time())
@@ -293,6 +317,8 @@ class SensorReader:
             time.sleep(0.1)
         if self.cfg.get("sensor_dust_enabled", True):
             reading.pm25, reading.pm10, reading.pm100 = self._read_dust()
+        if self.cfg.get("sensor_noise_enabled", True):
+            reading.noise = self._read_noise()
         return reading
 
     def close(self) -> None:
