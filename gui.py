@@ -1665,13 +1665,13 @@ class SparingGUI:
         # Server & UID
         _section("SERVER & IDENTITAS")
         for label, key in [
-            ("UID 1 (raw) :",       "uid1"),
-            ("UID 1 (processed) :", "uid1_processed"),
+            ("UID 1 :",             "uid1"),
             ("UID 2 :",             "uid2"),
             ("Server URL 1 :",      "server_url1"),
             ("Secret Key URL 1 :",  "secret_key_url1"),
             ("Server URL 2 :",     "server_url2"),
             ("Secret Key URL 2 :", "secret_key_url2"),
+            ("Link Video ID :",    "link_video_id"),
         ]:
             _entry(label, key)
 

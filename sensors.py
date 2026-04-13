@@ -310,6 +310,11 @@ class SensorReader:
         with self._lock:
             return self._read_noise()
 
+    def read_dust_safe(self) -> tuple:
+        """Baca debu (pm25, pm10, tsp) dengan lock — aman dari thread terpisah."""
+        with self._lock:
+            return self._read_dust()
+
     # ── Baca semua sensor ─────────────────────────────────────────────────────
     def read_all(self) -> SensorReading:
         reading = SensorReading(timestamp=time.time())

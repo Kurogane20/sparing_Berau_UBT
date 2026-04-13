@@ -161,9 +161,7 @@ class SparingApp:
                 self.root.after(0, self.gui.update_noise_processed, proc_noise)
                 self.root.after(0, self.gui.update_count, n, batch_size)
 
-                # Server 1: kirim setiap pembacaan (per 2 menit)
-                self._send_s1([r])
-
+                # Server 1: dihandle oleh _noise_loop (per 1 menit)
                 # Server 2: kirim saat batch penuh
                 if n >= batch_size:
                     self._send_s2_batch()
@@ -221,74 +219,88 @@ class SparingApp:
         time.sleep(2)   # tunggu GUI & sensor reader siap
 
         while self._running:
-            if not self.cfg.get("sensor_noise_enabled", True):
-                time.sleep(_SAMPLE_SEC)
-                continue
             try:
+                now    = time.time()
                 use_hw = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
-                noise  = (self.sensor_rdr.read_noise_safe()
-                          if use_hw
-                          else round(random.uniform(40.0, 80.0), 1))
-                if noise > 0:
-                    with self._noise_buf_lock:
-                        self._noise_buf.append(noise)
-                        if len(self._noise_buf) > _MAX_N:
-                            self._noise_buf.pop(0)   # rolling window
-                # Tampilkan nilai instan ke GUI
-                self.root.after(0, self.gui.update_noise_instant, noise)
+
+                # Baca noise
+                if self.cfg.get("sensor_noise_enabled", True):
+                    noise = (self.sensor_rdr.read_noise_safe()
+                             if self.sensor_rdr
+                             else round(random.uniform(40.0, 80.0), 1))
+                    if noise > 0:
+                        with self._noise_buf_lock:
+                            self._noise_buf.append(noise)
+                            if len(self._noise_buf) > _MAX_N:
+                                self._noise_buf.pop(0)
+                    self.root.after(0, self.gui.update_noise_instant, noise)
+                else:
+                    noise = 0.0
+
+                # Baca debu (PM)
+                if self.cfg.get("sensor_dust_enabled", True):
+                    if self.sensor_rdr:
+                        pm25, pm10, tsp = self.sensor_rdr.read_dust_safe()
+                    else:
+                        tsp  = round(random.uniform(30, 200), 1)
+                        pm25 = round(random.uniform(
+                            self.cfg.get("pm25_factor_min", 0.1),
+                            self.cfg.get("pm25_factor_max", 0.2)) * tsp, 1)
+                        pm10 = round(random.uniform(
+                            self.cfg.get("pm10_factor_min", 0.3),
+                            self.cfg.get("pm10_factor_max", 0.4)) * tsp, 1)
+                else:
+                    pm25 = pm10 = tsp = 0.0
+
+                # Kirim ke Server 1 (per 1 menit)
+                self._send_s1_env(pm25, pm10, tsp, noise, now)
+
             except Exception as e:
                 self._log(f"[ERROR] noise loop: {e}")
             time.sleep(_SAMPLE_SEC)
 
-    # ── Kirim batch 30 data ────────────────────────────────────────────────────
-    # ── Kirim ke Server 1 — setiap pembacaan (per 2 menit) ───────────────────
-    def _send_s1(self, readings: List[SensorReading]) -> None:
+    # ── Kirim ke Server 1 — per 1 menit (pm + noise + link_video_id) ──────────
+    def _send_s1_env(self, pm25: float, pm10: float, tsp: float,
+                     noise: float, timestamp: float) -> None:
         """
-        Kirim 1 data terbaru ke Server 1:
-          • jwt1_raw  — data murni sensor
-          • jwt1_proc — data setelah filter min/max
-        Jika offline atau gagal, simpan ke buffer_s1 untuk dikirim ulang nanti.
+        Kirim data lingkungan (debu + noise) ke Server 1 setiap 1 menit.
+        Format: uid, pm_25, pm_10, tsp, noise, datetime_unix, link_video_id.
+        Jika offline atau gagal, simpan ke buffer untuk dikirim ulang.
         """
-        jwt1_raw  = self.net.create_jwt1_raw(readings)
-        jwt1_proc = self.net.create_jwt1_processed(readings)
-        now       = time.time()
-
-        if not jwt1_raw:
+        link_video_id = self.cfg.get("link_video_id", "")
+        jwt = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
+                                          timestamp, link_video_id)
+        if not jwt:
             self._log("[S1] JWT gagal — secret key belum ada, data dibuang")
             return
 
         online = self.net.check_internet()
         if not online:
-            self.storage_s1.save(jwt1_raw=jwt1_raw, jwt1_proc=jwt1_proc)
-            return   # tidak log setiap 2 menit agar log bersih
+            self.storage_s1.save(jwt_env=jwt)
+            return
 
         # Kirim ulang buffer lama
-        flushed = self.storage_s1.flush_s1(self.net)
+        flushed = self.storage_s1.flush_s1_env(self.net)
         if flushed:
             self._log(f"[S1] {flushed} data lama dari buffer berhasil dikirim ulang")
 
-        url1 = self.cfg["server_url1"]
-        ok1r = self.net.post(url1, json.dumps({"token": jwt1_raw}))
-        ok1p = self.net.post(url1, json.dumps({"token": jwt1_proc}))
-        ok1  = ok1r and ok1p
-        now  = time.time()
+        ok = self.net.post(self.cfg["server_url1"],
+                           json.dumps({"token": jwt}))
+        self.root.after(0, self.gui.update_connection, "server1", ok)
 
-        self.root.after(0, self.gui.update_connection, "server1", ok1)
-
-        if ok1:
-            self.last_tx = now
+        if ok:
+            self.last_tx = timestamp
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
-            self._log(f"✓ [S1] Data terkirim (raw + processed)")
+            self._log(f"✓ [S1] PM+Noise terkirim  "
+                      f"(PM2.5={pm25} PM10={pm10} TSP={tsp} Noise={noise} dB)")
         else:
-            parts = []
-            if not ok1r: parts.append("raw GAGAL")
-            if not ok1p: parts.append("processed GAGAL")
-            self._log(f"✗ [S1] {', '.join(parts)} — disimpan ke buffer")
-            self.storage_s1.save(jwt1_raw=jwt1_raw, jwt1_proc=jwt1_proc)
+            self._log("✗ [S1] Gagal — disimpan ke buffer")
+            self.storage_s1.save(jwt_env=jwt)
 
         self.root.after(0, self.gui.update_buffer,
                         self.storage_s1.count() + self.storage_s2.count())
 
+    # ── Kirim batch 30 data ────────────────────────────────────────────────────
     # ── Kirim ke Server 2 — setiap batch penuh (30 data × 2 menit = 60 menit) ─
     def _send_s2_batch(self) -> None:
         """

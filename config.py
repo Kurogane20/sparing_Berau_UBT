@@ -48,6 +48,9 @@ DEFAULT_CONFIG: dict = {
     "log_url":                "http://13.215.182.25/api/log",
     "log_key":                "sparing",
 
+    # ID rekaman video/CCTV — disertakan di setiap pengiriman Server 1
+    "link_video_id":          "",
+
     # Server 2 — Kemenlhk
     "server_url2":            "https://sparing.kemenlh.go.id/api/send-hourly",
     "secret_key_url2":        "https://sparing.kemenlh.go.id/api/secret-sensor",

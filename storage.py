@@ -61,6 +61,30 @@ class DataStorage:
             log.info(f"[S1 buffer] {sent} entri berhasil dikirim ulang")
         return sent
 
+    def flush_s1_env(self, net) -> int:
+        """
+        Kirim ulang entri Server 1 format baru (pm + noise per 1 menit).
+        Setiap entri berisi jwt_env.
+        """
+        entries = self._load()
+        if not entries:
+            return 0
+        remaining, sent = [], 0
+        url = net.cfg["server_url1"]
+        for e in entries:
+            jwt = e.get("jwt_env", "")
+            if not jwt:
+                sent += 1   # buang entri kosong
+                continue
+            if net.post(url, json.dumps({"token": jwt})):
+                sent += 1
+            else:
+                remaining.append(e)
+        self._write(remaining)
+        if sent:
+            log.info(f"[S1 env buffer] {sent} entri berhasil dikirim ulang")
+        return sent
+
     def flush_s2(self, net) -> int:
         """
         Kirim ulang semua entri Server 2 yang tersimpan.

@@ -186,6 +186,32 @@ class NetworkManager:
         return self._make_jwt_processed(
             self.cfg["uid2"], self.secret_key2, batch)
 
+    def create_jwt_s1_env(self, pm25: float, pm10: float, tsp: float,
+                          noise: float, timestamp: float,
+                          link_video_id: str = "") -> str:
+        """
+        JWT Server 1 — format per-1-menit:
+          uid, pm_25, pm_10, tsp, noise (instan), datetime_unix, link_video_id
+        """
+        if not self.secret_key1 or not HAS_JWT or pyjwt is None:
+            return ""
+        payload = {
+            "uid": self.cfg["uid1"],
+            "data": [{
+                "pm_25":         round(pm25,  1),
+                "pm_10":         round(pm10,  1),
+                "tsp":           round(tsp,   1),
+                "noise":         round(noise, 1),
+                "datetime_unix": int(timestamp),
+                "link_video_id": link_video_id,
+            }],
+        }
+        try:
+            return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
+        except Exception as e:
+            log.error(f"JWT s1_env encode error: {e}")
+            return ""
+
     # Alias lama agar tidak ada error jika masih dipanggil
     def get_processed(self, r: SensorReading) -> tuple:
         """Kembalikan (ph, tss, debit, pm25, pm10, pm100, noise) setelah filter — untuk GUI."""
