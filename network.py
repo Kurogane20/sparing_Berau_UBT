@@ -202,6 +202,7 @@ class NetworkManager:
                 "pm_10":         round(pm10,  1),
                 "tsp":           round(tsp,   1),
                 "noise":         round(noise, 1),
+                "temp":          0,
                 "datetime_unix": int(timestamp),
                 "link_video_id": link_video_id,
             }],
