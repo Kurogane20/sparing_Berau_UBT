@@ -180,13 +180,27 @@ class SparingGUI:
         conn_row = tk.Frame(row, bg=C["panel"])
         conn_row.pack(side="left", padx=(self._sp(30), 0), fill="y")
 
-        _dot_sz = self._sp(8)
+        _dot_sz   = self._sp(8)
+        _simulate = self.cfg.get("simulate_sensors", False)
         for key, label in [
             ("rs485",    "RS485"),
             ("internet", "Internet"),
             ("server1",  "Server 1"),
             ("server2",  "Server 2"),
         ]:
+            # Sembunyikan indikator RS485 saat mode simulasi
+            if key == "rs485" and _simulate:
+                # Tetap daftarkan agar update_connection tidak error
+                dummy_var = tk.StringVar(value="")
+                dummy_lbl = tk.Label(conn_row, bg=C["panel"])
+                dummy_dot = tk.Canvas(conn_row, width=0, height=0,
+                                      bg=C["panel"], highlightthickness=0)
+                dummy_dot.create_oval(0, 0, 0, 0, tags="dot")
+                self._conn_dots[key]   = dummy_dot
+                self._conn_chips[key]  = (dummy_var, dummy_lbl)
+                self._conn_labels[key] = (dummy_var, dummy_lbl)
+                continue
+
             chip_frame = tk.Frame(conn_row, bg=C["panel"])
             chip_frame.pack(side="left", padx=self._sp(6))
 

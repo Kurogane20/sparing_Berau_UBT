@@ -1145,3 +1145,7 @@
 [23:04:38] INFO: [SIM] Data 1/30 — pH=6.80  TSS=54.30 mg/L  Debit=0.02 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
 [23:04:40] INFO: Mengambil secret key dari server...
 [23:04:40] INFO: Secret key berhasil diperoleh
+[23:14:42] INFO: pymodbus tersedia
+[23:14:45] INFO: [SIM] Data 1/30 — pH=7.77  TSS=103.28 mg/L  Debit=0.02 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[23:14:46] INFO: Mengambil secret key dari server...
+[23:14:46] INFO: Secret key berhasil diperoleh
