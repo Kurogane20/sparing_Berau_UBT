@@ -149,7 +149,7 @@ class SparingApp:
                 self._log(
                     f"{mode_tag}Data {n}/{batch_size} — "
                     f"pH={r.ph:.2f}  TSS={r.tss:.2f} mg/L  "
-                    f"Debit={r.debit:.4f} m³/s  "
+                    f"Debit={r.debit:.2f} m³/s  "
                     f"PM2.5={r.pm25:.1f}  PM10={r.pm10:.1f}  PM100={r.pm100:.1f} ug/m³  "
                     f"Leq={r.noise:.1f} dB"
                 )
@@ -161,7 +161,9 @@ class SparingApp:
                 self.root.after(0, self.gui.update_noise_processed, proc_noise)
                 self.root.after(0, self.gui.update_count, n, batch_size)
 
-                # Server 1: dihandle oleh _noise_loop (per 1 menit)
+                # Server 1: kualitas air (pH, TSS, Debit) — per 2 menit
+                self._send_s1_water(r)
+
                 # Server 2: kirim saat batch penuh
                 if n >= batch_size:
                     self._send_s2_batch()
@@ -259,6 +261,36 @@ class SparingApp:
                 self._log(f"[ERROR] noise loop: {e}")
             time.sleep(_SAMPLE_SEC)
 
+    # ── Kirim ke Server 1 — kualitas air, per 2 menit ────────────────────────
+    def _send_s1_water(self, r: SensorReading) -> None:
+        """
+        Kirim data kualitas air (pH, TSS, Debit) ke Server 1 setiap 2 menit.
+        Format JWT flat: uid, pH, tss, debit, cod, nh3n, datetime, tl.
+        """
+        jwt = self.net.create_jwt1_water(r)
+        if not jwt:
+            return   # sensor air semua nonaktif atau secret key belum ada
+
+        online = self.net.check_internet()
+        if not online:
+            self.storage_s1.save(jwt_s1=jwt)
+            return
+
+        ok = self.net.post(self.cfg["server_url1"],
+                           json.dumps({"token": jwt}))
+        self.root.after(0, self.gui.update_connection, "server1", ok)
+
+        if ok:
+            self.last_tx = r.timestamp
+            self.root.after(0, self.gui.update_last_tx, self.last_tx)
+            self._log(f"✓ [S1-W] pH={r.ph}  TSS={r.tss}  Debit={r.debit:.2f}")
+        else:
+            self._log("✗ [S1-W] Gagal — disimpan ke buffer")
+            self.storage_s1.save(jwt_s1=jwt)
+
+        self.root.after(0, self.gui.update_buffer,
+                        self.storage_s1.count() + self.storage_s2.count())
+
     # ── Kirim ke Server 1 — per 1 menit (pm + noise + link_video_id) ──────────
     def _send_s1_env(self, pm25: float, pm10: float, tsp: float,
                      noise: float, timestamp: float) -> None:
@@ -272,8 +304,7 @@ class SparingApp:
         jwt = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
                                           timestamp, link_video_id)
         if not jwt:
-            self._log("[S1] JWT gagal — secret key belum ada, data dibuang")
-            return
+            return   # sensor udara semua nonaktif atau secret key belum ada
 
         body = json.dumps({"token": jwt})
 

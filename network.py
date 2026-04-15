@@ -186,24 +186,68 @@ class NetworkManager:
         return self._make_jwt_processed(
             self.cfg["uid2"], self.secret_key2, batch)
 
+    def create_jwt1_water(self, r: SensorReading) -> str:
+        """
+        JWT Server 1 — kualitas air (pH, TSS, Debit).
+        Hanya menyertakan field sensor yang aktif.
+        Kembalikan "" jika tidak ada sensor air yang aktif.
+        """
+        if not self.secret_key1 or not HAS_JWT or pyjwt is None:
+            return ""
+        cfg = self.cfg
+        ph_on    = cfg.get("sensor_ph_enabled",    True)
+        tss_on   = cfg.get("sensor_tss_enabled",   True)
+        debit_on = cfg.get("sensor_debit_enabled", True)
+
+        # Tidak ada sensor air aktif — tidak perlu kirim
+        if not (ph_on or tss_on or debit_on):
+            return ""
+
+        payload: dict = {
+            "uid":      cfg["uid1"],
+            "cod":      0,
+            "nh3n":     0,
+            "datetime": int(r.timestamp),
+            "tl":       cfg.get("tl_water", 1),
+        }
+        if ph_on:    payload["pH"]    = round(r.ph,    2)
+        if tss_on:   payload["tss"]   = round(r.tss,   2)
+        if debit_on: payload["debit"] = round(r.debit, 2)
+        try:
+            return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
+        except Exception as e:
+            log.error(f"JWT water encode error: {e}")
+            return ""
+
     def create_jwt_s1_env(self, pm25: float, pm10: float, tsp: float,
                           noise: float, timestamp: float,
                           link_video_id: str = "") -> str:
         """
-        JWT Server 1 — format per-1-menit:
-          uid, pm_25, pm_10, tsp, noise (instan), datetime_unix, link_video_id
+        JWT Server 1 — kualitas udara (PM + noise), per 1 menit.
+        Hanya menyertakan field sensor yang aktif.
+        Kembalikan "" jika tidak ada sensor udara yang aktif.
         """
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
             return ""
-        payload = {
-            "uid":      self.cfg["uid1"],
-            "pm2.5":    round(pm25,  1),
-            "pm10":     round(pm10,  1),
-            "tsp":      round(tsp,   1),
-            "noise":    round(noise, 1),
-            "tl":       1,
+        cfg      = self.cfg
+        dust_on  = cfg.get("sensor_dust_enabled",  True)
+        noise_on = cfg.get("sensor_noise_enabled", True)
+
+        # Tidak ada sensor udara aktif — tidak perlu kirim
+        if not (dust_on or noise_on):
+            return ""
+
+        payload: dict = {
+            "uid":      cfg["uid1"],
+            "tl":       cfg.get("tl_water", 1),
             "datetime": int(timestamp),
         }
+        if dust_on:
+            payload["pm2.5"] = round(pm25, 1)
+            payload["pm10"]  = round(pm10, 1)
+            payload["tsp"]   = round(tsp,  1)
+        if noise_on:
+            payload["noise"] = round(noise, 1)
         if link_video_id:
             payload["link_video_id"] = link_video_id
         try:

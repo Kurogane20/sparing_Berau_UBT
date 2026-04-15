@@ -42,7 +42,7 @@ DEFAULT_CONFIG: dict = {
     "server_url1":            "http://127.0.0.1:8000/api/post-data",
     "secret_key_url1":        "http://127.0.0.1:8000/api/get-key",
     "uid1":                   "test",  # ganti jika server pakai UID berbeda
-    "uid1_processed":         "test_processed",   # ganti jika server pakai UID berbeda
+    "tl_water":               1,       # tipe_logger untuk data kualitas air
 
     # Log server
     "log_url":                "http://13.215.182.25/api/log",

@@ -514,6 +514,8 @@ class SparingGUI:
             parent, C["card"], radius=self._sp(14),
             side="left", fill="both", expand=True,
             padx=(0, self._sp(8)))
+        self._log_canvas = canvas   # simpan referensi untuk show/hide
+        canvas.pack_forget()        # sembunyikan sampai di-unlock
 
         # Accent stripe + title
         tk.Frame(outer, bg=C["accent"],
@@ -556,10 +558,11 @@ class SparingGUI:
 
     # ── Right panel ───────────────────────────────────────────────────────────
     def _build_right_panel(self, parent: tk.Frame) -> None:
-        # Container dengan lebar tetap
+        # Container — lebar tetap saat terkunci (isi penuh), kanan saat terbuka
         right_outer = tk.Frame(parent, bg=C["bg"], width=self._r_width)
-        right_outer.pack(side="right", fill="y")
+        right_outer.pack(fill="both", expand=True)   # isi penuh saat log hidden
         right_outer.pack_propagate(False)
+        self._right_outer = right_outer   # simpan untuk resize saat unlock/lock
 
         # Canvas + scrollbar agar konten bisa di-scroll jika tidak muat
         r_canvas = tk.Canvas(right_outer, bg=C["bg"], highlightthickness=0,
@@ -676,9 +679,13 @@ class SparingGUI:
             # Simpan per cfg_key — dust punya 3 baris, simpan sebagai list
             self._limit_rows.setdefault(cfg_key, []).append(lim_row)
 
-        # ── Kontrol RS485 ─────────────────────────────────────────────────────
-        ctrl_inner = self._card(right, "KONTROL RS485", C["text_muted"],
-                                fill="x", pady=(0, 8))
+        # ── Kontrol RS485 + Settings — hanya tampil saat unlocked ───────────────
+        self._ctrl_wrapper = tk.Frame(right, bg=C["bg"])
+        self._ctrl_wrapper.pack(fill="x")
+        self._ctrl_wrapper.pack_forget()   # sembunyikan sampai unlock
+
+        ctrl_inner = self._card(self._ctrl_wrapper, "KONTROL RS485",
+                                C["text_muted"], fill="x", pady=(0, 8))
 
         use_hat = self.cfg.get("use_rs485_hat", False)
 
@@ -731,7 +738,7 @@ class SparingGUI:
 
         # ── Settings ──────────────────────────────────────────────────────────
         self._flat_btn(
-            right, "⚙   Pengaturan Koneksi",
+            self._ctrl_wrapper, "⚙   Pengaturan Koneksi",
             self._open_settings,
             C["primary_dark"], "white",
             pady=10
@@ -1172,17 +1179,30 @@ class SparingGUI:
             side="left", ipadx=self._sp(12))
 
     def _unlock(self) -> None:
-        """Tampilkan processed values dan limits card."""
+        """Tampilkan log aktivitas, processed values, dan limits card."""
         self._unlocked = True
         if self._lock_btn_var:
             self._lock_btn_var.set("🔓")
+
+        # Tampilkan kontrol RS485 & pengaturan
+        if hasattr(self, "_ctrl_wrapper"):
+            self._ctrl_wrapper.pack(fill="x")
+
+        # Tampilkan log aktivitas — panel kanan kembali ke lebar tetap di kanan
+        if hasattr(self, "_log_canvas"):
+            if hasattr(self, "_right_outer"):
+                self._right_outer.pack_forget()
+                self._right_outer.configure(width=self._r_width)
+                self._right_outer.pack(side="right", fill="y")
+            self._log_canvas.pack(side="left", fill="both", expand=True,
+                                  padx=(0, self._sp(8)))
 
         # Isi nilai processed segera dari cache terakhir (jika ada)
         if hasattr(self, "_last_proc"):
             ph, tss, debit = self._last_proc
             self._proc_vars["ph"].set(f"{ph:.2f}")
             self._proc_vars["tss"].set(f"{tss:.2f}")
-            self._proc_vars["debit"].set(f"{debit:.4f}")
+            self._proc_vars["debit"].set(f"{debit:.2f}")
         if hasattr(self, "_last_proc_dust"):
             pm25, pm10, pm100 = self._last_proc_dust
             self._proc_vars["pm25"].set(f"{pm25:.1f}")
@@ -1223,6 +1243,17 @@ class SparingGUI:
         for key, var in self._proc_vars.items():
             var.set("●  ●  ●")
 
+        # Sembunyikan kontrol RS485 & pengaturan
+        if hasattr(self, "_ctrl_wrapper"):
+            self._ctrl_wrapper.pack_forget()
+
+        # Sembunyikan log aktivitas — panel kanan melebar isi seluruh area
+        if hasattr(self, "_log_canvas"):
+            self._log_canvas.pack_forget()
+            if hasattr(self, "_right_outer"):
+                self._right_outer.pack_forget()
+                self._right_outer.pack(fill="both", expand=True)
+
         # Sembunyikan limits wrapper
         if self._limits_wrapper:
             self._limits_wrapper.pack_forget()
@@ -1242,7 +1273,7 @@ class SparingGUI:
     def update_sensors(self, r: SensorReading) -> None:
         self._sensor_vars["ph"].set(f"{r.ph:.2f}")
         self._sensor_vars["tss"].set(f"{r.tss:.2f}")
-        self._sensor_vars["debit"].set(f"{r.debit:.4f}")
+        self._sensor_vars["debit"].set(f"{r.debit:.2f}")
         self._sensor_vars["pm25"].set(f"{r.pm25:.1f}")
         self._sensor_vars["pm10"].set(f"{r.pm10:.1f}")
         self._sensor_vars["pm100"].set(f"{r.pm100:.1f}")
@@ -1256,7 +1287,7 @@ class SparingGUI:
             return   # tetap tampilkan mask sampai dibuka
         self._proc_vars["ph"].set(f"{ph:.2f}")
         self._proc_vars["tss"].set(f"{tss:.2f}")
-        self._proc_vars["debit"].set(f"{debit:.4f}")
+        self._proc_vars["debit"].set(f"{debit:.2f}")
 
     def update_dust_processed(self, pm25: float, pm10: float,
                                pm100: float) -> None:

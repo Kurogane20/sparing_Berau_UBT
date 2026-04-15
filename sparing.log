@@ -1033,3 +1033,115 @@
 [11:52:33] ERROR: Fetch key gagal (http://127.0.0.1:8000/api/get-key): HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /api/get-key (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
 [11:52:33] WARNING: Secret key 1 default digunakan
 [11:52:33] INFO: Secret key berhasil diperoleh
+[22:25:41] INFO: pymodbus tersedia
+[22:25:44] INFO: [SIM] Data 1/30 — pH=8.08  TSS=81.89 mg/L  Debit=0.0242 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=52.3 dB
+[22:25:44] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[22:25:45] INFO: Mengambil secret key dari server...
+[22:25:46] INFO: Secret key berhasil diperoleh
+[22:26:01] INFO: pymodbus tersedia
+[22:26:03] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[22:26:03] INFO: [SIM] Data 1/30 — pH=7.31  TSS=79.91 mg/L  Debit=0.0230 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=76.8 dB
+[22:26:05] INFO: Mengambil secret key dari server...
+[22:26:06] INFO: Secret key berhasil diperoleh
+[22:26:18] INFO: pymodbus tersedia
+[22:26:21] INFO: [SIM] Data 1/30 — pH=6.79  TSS=88.17 mg/L  Debit=0.0215 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:26:21] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[22:26:22] INFO: Mengambil secret key dari server...
+[22:26:22] INFO: Secret key berhasil diperoleh
+[22:27:22] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:27:23.376834Z"}
+[22:27:22] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:27:23.376834Z"}
+[22:27:22] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:28:21] INFO: [SIM] Data 2/30 — pH=8.06  TSS=52.77 mg/L  Debit=0.0339 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:28:22] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:28:23.923254Z"}
+[22:28:22] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:28:23.923254Z"}
+[22:28:22] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:32:57] INFO: pymodbus tersedia
+[22:33:00] INFO: [S1] JWT gagal — secret key belum ada, data dibuang
+[22:33:00] INFO: [SIM] Data 1/30 — pH=8.13  TSS=94.96 mg/L  Debit=0.0240 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:33:00] INFO: [S1-W] JWT gagal — secret key belum ada, data dibuang
+[22:33:01] INFO: Mengambil secret key dari server...
+[22:33:02] INFO: Secret key berhasil diperoleh
+[22:34:01] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:34:02.903483Z"}
+[22:34:01] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:34:02.903483Z"}
+[22:34:01] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:35:00] INFO: [SIM] Data 2/30 — pH=8.39  TSS=89.82 mg/L  Debit=0.0173 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:35:00] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:35:01.934079Z"}
+[22:35:00] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:35:01.934079Z"}
+[22:35:00] INFO: ✓ [S1-W] pH=8.39  TSS=89.82  Debit=0.0173
+[22:35:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:35:03.327161Z"}
+[22:35:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:35:03.327161Z"}
+[22:35:02] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:36:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:36:03.798894Z"}
+[22:36:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:36:03.798894Z"}
+[22:36:02] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:37:00] INFO: [SIM] Data 3/30 — pH=7.80  TSS=64.80 mg/L  Debit=0.0276 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:37:01] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:37:02.464391Z"}
+[22:37:01] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:37:02.464391Z"}
+[22:37:01] INFO: ✓ [S1-W] pH=7.8  TSS=64.8  Debit=0.0276
+[22:37:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:37:04.238869Z"}
+[22:37:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:37:04.238869Z"}
+[22:37:02] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:38:03] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:38:05.037199Z"}
+[22:38:03] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:38:05.037199Z"}
+[22:38:03] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:39:01] INFO: [SIM] Data 4/30 — pH=6.88  TSS=52.97 mg/L  Debit=0.0205 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:39:01] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:39:03.203041Z"}
+[22:39:01] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:39:03.203041Z"}
+[22:39:01] INFO: ✓ [S1-W] pH=6.88  TSS=52.97  Debit=0.0205
+[22:39:04] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:39:05.707267Z"}
+[22:39:04] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:39:05.707267Z"}
+[22:39:04] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:40:04] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:40:06.152663Z"}
+[22:40:04] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:40:06.152663Z"}
+[22:40:04] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:41:01] INFO: [SIM] Data 5/30 — pH=8.27  TSS=104.43 mg/L  Debit=0.0112 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:41:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:41:03.702092Z"}
+[22:41:02] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:41:03.702092Z"}
+[22:41:02] INFO: ✓ [S1-W] pH=8.27  TSS=104.43  Debit=0.0112
+[22:41:05] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:41:06.534355Z"}
+[22:41:05] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:41:06.534355Z"}
+[22:41:05] INFO: ✓ [S1] PM+Noise terkirim  (PM2.5=0.0 PM10=0.0 TSP=0.0 Noise=0.0 dB)
+[22:41:39] INFO: pymodbus tersedia
+[22:41:41] INFO: [SIM] Data 1/30 — pH=7.45  TSS=108.29 mg/L  Debit=0.0114 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:41:42] INFO: Mengambil secret key dari server...
+[22:41:43] INFO: Secret key berhasil diperoleh
+[22:43:41] INFO: [SIM] Data 2/30 — pH=8.21  TSS=99.83 mg/L  Debit=0.0309 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:43:43] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:43:44.387958Z"}
+[22:43:43] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:43:44.387958Z"}
+[22:43:43] INFO: ✓ [S1-W] pH=8.21  TSS=99.83  Debit=0.0309
+[22:45:43] INFO: [SIM] Data 3/30 — pH=7.58  TSS=83.17 mg/L  Debit=0.0327 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:45:44] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:45:45.889208Z"}
+[22:45:44] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:45:45.889208Z"}
+[22:45:44] INFO: ✓ [S1-W] pH=7.58  TSS=83.17  Debit=0.0327
+[22:47:44] INFO: [SIM] Data 4/30 — pH=6.61  TSS=58.14 mg/L  Debit=0.0101 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:47:45] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:47:46.410692Z"}
+[22:47:45] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:47:46.410692Z"}
+[22:47:45] INFO: ✓ [S1-W] pH=6.61  TSS=58.14  Debit=0.0101
+[22:53:50] INFO: pymodbus tersedia
+[22:53:53] INFO: [SIM] Data 1/30 — pH=7.55  TSS=91.07 mg/L  Debit=0.03 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:53:54] INFO: Mengambil secret key dari server...
+[22:53:54] INFO: Secret key berhasil diperoleh
+[22:55:19] INFO: pymodbus tersedia
+[22:55:22] INFO: [SIM] Data 1/30 — pH=8.49  TSS=65.81 mg/L  Debit=0.02 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:55:23] INFO: Mengambil secret key dari server...
+[22:55:24] INFO: Secret key berhasil diperoleh
+[22:57:22] INFO: [SIM] Data 2/30 — pH=7.21  TSS=106.99 mg/L  Debit=0.03 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:57:22] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:57:24.208959Z"}
+[22:57:22] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:57:24.208959Z"}
+[22:57:22] INFO: ✓ [S1-W] pH=7.21  TSS=106.99  Debit=0.03
+[22:59:22] INFO: [SIM] Data 3/30 — pH=7.35  TSS=92.40 mg/L  Debit=0.03 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[22:59:23] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:59:24.994108Z"}
+[22:59:23] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T15:59:24.994108Z"}
+[22:59:23] INFO: ✓ [S1-W] pH=7.35  TSS=92.4  Debit=0.03
+[23:01:23] INFO: [SIM] Data 4/30 — pH=7.23  TSS=103.79 mg/L  Debit=0.01 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[23:01:25] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T16:01:26.403179Z"}
+[23:01:25] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T16:01:26.403179Z"}
+[23:01:25] INFO: ✓ [S1-W] pH=7.23  TSS=103.79  Debit=0.01
+[23:03:25] INFO: [SIM] Data 5/30 — pH=6.71  TSS=65.45 mg/L  Debit=0.03 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[23:03:26] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T16:03:27.811682Z"}
+[23:03:26] INFO: [POST] sparing-logger.beraucoal.co.id → HTTP 200  {"message":"UID WMP06GT - Insert Success!","responseTime":"2026-04-15T16:03:27.811682Z"}
+[23:03:26] INFO: ✓ [S1-W] pH=6.71  TSS=65.45  Debit=0.03
+[23:04:36] INFO: pymodbus tersedia
+[23:04:38] INFO: [SIM] Data 1/30 — pH=6.80  TSS=54.30 mg/L  Debit=0.02 m³/s  PM2.5=0.0  PM10=0.0  PM100=0.0 ug/m³  Leq=0.0 dB
+[23:04:40] INFO: Mengambil secret key dari server...
+[23:04:40] INFO: Secret key berhasil diperoleh
