@@ -16,3 +16,4 @@ class SensorReading:
     pm10:      float = 0.0   # PM10  konsentrasi debu (ug/m³)
     pm100:     float = 0.0   # PM100 konsentrasi debu (ug/m³)
     noise:     float = 0.0   # Kebisingan (dB)
+    temp:      float = 0.0   # Suhu air (°C)

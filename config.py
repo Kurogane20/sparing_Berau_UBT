@@ -35,6 +35,7 @@ DEFAULT_CONFIG: dict = {
     "slave_id_debit":         1,
     "slave_id_dust":          3,     # RK300-02 dust sensor
     "slave_id_noise":         4,     # Sound level meter — address 0, reg[0]/10 = dB
+    "slave_id_temp":          5,     # Sensor suhu air
 
     # Server 1 — Mitra Mutiara
     # uid1          : UID untuk data MURNI (tanpa batas min/max)
@@ -66,13 +67,13 @@ DEFAULT_CONFIG: dict = {
     "sensor_debit_enabled":   True,
     "sensor_dust_enabled":    True,   # PM2.5, PM10, PM100 (RK300-02)
     "sensor_noise_enabled":   True,   # Kebisingan dB (Sound Level Meter)
-
-    # Offset kalibrasi sensor
+    "sensor_temp_enabled":    True,   # Suhu air (°C)
     "offset_ph":              0.0,
     "offset_tss":             0.0,
     "offset_debit":           0.0,
     "offset_pm100":           0.0,
     "offset_noise":           0.0,
+    "offset_temp":            0.0,
 
     # Faktor perhitungan PM2.5 dan PM10 dari TSP (PM100)
     # PM2.5 = random(pm25_factor_min, pm25_factor_max) × TSP
@@ -115,6 +116,9 @@ DEFAULT_CONFIG: dict = {
     "limit_noise_min":        0.0,
     "limit_noise_max":        120.0,   # dB
     "limit_noise_float":      2.0,
+    "limit_temp_min":         0.0,
+    "limit_temp_max":         50.0,    # °C
+    "limit_temp_float":       1.0,
 }
 
 

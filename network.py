@@ -198,9 +198,10 @@ class NetworkManager:
         ph_on    = cfg.get("sensor_ph_enabled",    True)
         tss_on   = cfg.get("sensor_tss_enabled",   True)
         debit_on = cfg.get("sensor_debit_enabled", True)
+        temp_on  = cfg.get("sensor_temp_enabled",  True)
 
         # Tidak ada sensor air aktif — tidak perlu kirim
-        if not (ph_on or tss_on or debit_on):
+        if not (ph_on or tss_on or debit_on or temp_on):
             return ""
 
         payload: dict = {
@@ -213,6 +214,7 @@ class NetworkManager:
         if ph_on:    payload["pH"]    = round(r.ph,    2)
         if tss_on:   payload["tss"]   = round(r.tss,   2)
         if debit_on: payload["debit"] = round(r.debit, 2)
+        if temp_on:  payload["temp"]  = round(r.temp,  1)
         try:
             return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
         except Exception as e:

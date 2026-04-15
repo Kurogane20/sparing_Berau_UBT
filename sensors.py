@@ -315,6 +315,30 @@ class SensorReader:
         with self._lock:
             return self._read_dust()
 
+    # ── Suhu air ──────────────────────────────────────────────────────────────
+    def _read_temp(self) -> float:
+        """
+        Slave ID = slave_id_temp (default 5).
+        Register address=0, count=1:
+          reg[0] / 10 = suhu (°C)
+        """
+        if self._mb is None:
+            return round(random.uniform(25.0, 30.0), 1)
+        try:
+            r = self._rhr(0, 1, self.cfg["slave_id_temp"])
+            if not r.isError():
+                raw  = r.registers[0]
+                temp = round(raw / 10 + self.cfg.get("offset_temp", 0.0), 1)
+                return temp
+            else:
+                msg = f"[SENSOR] Temp isError: {r}"
+                log.error(msg)
+                self._on_error(msg)
+        except Exception as e:
+            log.error(f"Baca Temp gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Temp gagal: {e}")
+        return 0.0
+
     # ── Baca semua sensor ─────────────────────────────────────────────────────
     def read_all(self) -> SensorReading:
         reading = SensorReading(timestamp=time.time())
@@ -330,6 +354,8 @@ class SensorReader:
                 time.sleep(0.1)
             if self.cfg.get("sensor_dust_enabled", True):
                 reading.pm25, reading.pm10, reading.pm100 = self._read_dust()
+            if self.cfg.get("sensor_temp_enabled", True):
+                reading.temp  = self._read_temp()
             # noise tidak dibaca di sini — dihandle oleh _noise_loop di app.py
         return reading
 

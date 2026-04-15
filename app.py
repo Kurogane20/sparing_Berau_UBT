@@ -151,7 +151,7 @@ class SparingApp:
                     f"pH={r.ph:.2f}  TSS={r.tss:.2f} mg/L  "
                     f"Debit={r.debit:.2f} m³/s  "
                     f"PM2.5={r.pm25:.1f}  PM10={r.pm10:.1f}  PM100={r.pm100:.1f} ug/m³  "
-                    f"Leq={r.noise:.1f} dB"
+                    f"Leq={r.noise:.1f} dB  Temp={r.temp:.1f}°C"
                 )
                 self.root.after(0, self.gui.update_sensors, r)
                 self.root.after(0, self.gui.update_sensors_processed,
@@ -408,6 +408,7 @@ class SparingApp:
             ph        = round(random.uniform(7.5,  7.6),  2),
             tss       = round(random.uniform(80.0, 90.0), 2),
             debit     = round(random.uniform(0.01, 0.10), 2),
+            temp      = round(random.uniform(25.0, 30.0), 1),
         )
 
     def _quit(self) -> None:
