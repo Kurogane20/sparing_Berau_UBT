@@ -405,9 +405,9 @@ class SparingApp:
     def _simulate() -> SensorReading:
         return SensorReading(
             timestamp = time.time(),
-            ph        = round(random.uniform(6.5, 8.5), 2),
-            tss       = round(random.uniform(50.0, 110.0), 2),
-            debit     = round(random.uniform(0.010, 0.035), 5),
+            ph        = round(random.uniform(7.5,  7.6),  2),
+            tss       = round(random.uniform(80.0, 90.0), 2),
+            debit     = round(random.uniform(0.01, 0.10), 2),
         )
 
     def _quit(self) -> None:
