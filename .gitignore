@@ -13,6 +13,11 @@ env/
 # Runtime & logs
 error_log.txt
 data_backup.json
+config.json
+gap_state.json
+data_buffer*.json
+sparing.log
+*.log
 
 # IDE / OS
 .vscode/

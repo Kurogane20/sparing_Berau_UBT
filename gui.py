@@ -58,6 +58,9 @@ class SparingGUI:
         self._temp_row_frame:  tk.Frame = None  # baris kartu suhu air
 
         self._unlocked:        bool      = False
+        self._gap_btn:         tk.Button    = None   # tombol isi gap data
+        self._gap_btn_var:     tk.StringVar = None
+        self._gap_info_var:    tk.StringVar = None
         self._lock_btn_var:    tk.StringVar = None   # set saat build footer
         self._limits_wrapper:  tk.Frame  = None      # hidden sampai unlock
         self._limits_pack_ref: tk.Widget = None      # widget sebelum limits card
@@ -796,6 +799,31 @@ class SparingGUI:
             pady=10
         ).pack(fill="x", pady=(4, 0))
 
+        # ── Gap Fill ──────────────────────────────────────────────────────────
+        gap_wrap = tk.Frame(self._ctrl_wrapper, bg=C["bg"])
+        gap_wrap.pack(fill="x", pady=(4, 0))
+
+        self._gap_btn_var = tk.StringVar(value="⏱  Isi Gap Data Server 1")
+        self._gap_btn = tk.Button(
+            gap_wrap,
+            textvariable = self._gap_btn_var,
+            command      = self._on_gap_fill,
+            bg="#E65100", fg="white",
+            font=(_FONT_UI, self._fs(9), "bold"),
+            relief="flat", cursor="hand2",
+            activebackground="#BF360C",
+            activeforeground="white",
+            pady=self._sp(8),
+        )
+        self._gap_btn.pack(fill="x")
+
+        # Info durasi gap
+        self._gap_info_var = tk.StringVar(value="")
+        tk.Label(gap_wrap, textvariable=self._gap_info_var,
+                 bg=C["bg"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(7))).pack(anchor="w", pady=(2, 0))
+        self._refresh_gap_info()
+
     # ═══════════════════════════════════════════════════════════════════════════
     # FOOTER
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1337,6 +1365,33 @@ class SparingGUI:
         self._clock_var.set(now.strftime("%H:%M:%S"))
         self._date_var.set(now.strftime("%d %B %Y"))
         self.root.after(1000, self._tick_clock)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ── Gap fill helpers ──────────────────────────────────────────────────────
+    def _on_gap_fill(self) -> None:
+        """Tombol ISI GAP diklik."""
+        self.app.trigger_gap_fill()
+
+    def _refresh_gap_info(self) -> None:
+        """Update label info durasi gap."""
+        try:
+            import gap_filler
+            interval = self.cfg.get("interval_seconds", 120)
+            info = gap_filler.gap_duration_str(interval)
+            self._gap_info_var.set(f"Gap saat ini: {info}")
+        except Exception:
+            pass
+
+    def gap_btn_busy(self) -> None:
+        """Ubah tombol ke mode 'sedang berjalan' (dipanggil dari main thread)."""
+        self._gap_btn.configure(state="disabled", bg="#9E9E9E")
+        self._gap_btn_var.set("⏳  Mengisi gap...")
+
+    def gap_btn_reset(self) -> None:
+        """Kembalikan tombol ke keadaan normal dan refresh info gap."""
+        self._gap_btn.configure(state="normal", bg="#E65100")
+        self._gap_btn_var.set("⏱  Isi Gap Data Server 1")
+        self._refresh_gap_info()
 
     # ═══════════════════════════════════════════════════════════════════════════
     # PUBLIC UPDATE METHODS  (dipanggil dari thread via root.after)

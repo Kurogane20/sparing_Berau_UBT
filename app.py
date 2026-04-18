@@ -14,12 +14,13 @@ from typing import List, Optional
 
 import tkinter as tk
 
-from config   import load_config, save_config
-from models   import SensorReading
-from sensors  import SensorReader
-from network  import NetworkManager
-from storage  import DataStorage
-from gui      import SparingGUI
+from config      import load_config, save_config
+from models      import SensorReading
+from sensors     import SensorReader
+from network     import NetworkManager
+from storage     import DataStorage
+from gui         import SparingGUI
+import gap_filler
 
 log = logging.getLogger(__name__)
 
@@ -123,10 +124,14 @@ class SparingApp:
         interval   = self.cfg["interval_seconds"]
         time.sleep(2)   # beri waktu GUI load
 
+        # Deteksi dan isi gap otomatis saat startup
+        self._fill_gaps(auto=True)
+
         while self._running:
             try:
                 use_hw  = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
                 r       = self.sensor_rdr.read_all() if use_hw else self._simulate()
+                gap_filler.save_state(r)   # simpan pembacaan terakhir untuk gap fill
                 port_ok = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
 
                 self.root.after(0, self.gui.update_connection, "rs485", port_ok)
@@ -410,6 +415,80 @@ class SparingApp:
             debit     = round(random.uniform(0.01, 0.10), 2),
             temp      = round(random.uniform(25.0, 30.0), 1),
         )
+
+    # ── Gap fill — isi slot kosong ke Server 1 ────────────────────────────────
+    def _fill_gaps(self, auto: bool = False) -> None:
+        """
+        Deteksi dan kirim data gap ke Server 1.
+        auto=True  → dipanggil otomatis saat startup (tidak update tombol GUI)
+        auto=False → dipanggil dari tombol GUI
+        """
+        interval = self.cfg["interval_seconds"]
+        slots    = gap_filler.detect_and_fill(interval)
+
+        if not slots:
+            msg = "[GAP] Tidak ada gap data yang perlu diisi"
+            self._log(msg)
+            if not auto:
+                self.root.after(0, self.gui.gap_btn_reset)
+            return
+
+        gap_min = (slots[-1].timestamp - slots[0].timestamp + interval) / 60
+        self._log(
+            f"[GAP] Mengisi {len(slots)} slot "
+            f"({gap_min:.0f} menit) → Server 1..."
+        )
+
+        online = self.net.check_internet()
+        sent = saved = 0
+
+        for i, r in enumerate(slots, 1):
+            # ── Kualitas air ──────────────────────────────────────────────────
+            jwt_w = self.net.create_jwt1_water(r)
+            if jwt_w:
+                if online and self.net.post(
+                        self.cfg["server_url1"],
+                        json.dumps({"token": jwt_w})):
+                    sent += 1
+                else:
+                    self.storage_s1.save(jwt_s1=jwt_w)
+                    saved += 1
+
+            # ── Kualitas udara ────────────────────────────────────────────────
+            link  = self.cfg.get("link_video_id", "")
+            jwt_e = self.net.create_jwt_s1_env(
+                r.pm25, r.pm10, r.pm100, r.noise, r.timestamp, link)
+            if jwt_e:
+                if online and self.net.post(
+                        self.cfg["server_url1"],
+                        json.dumps({"token": jwt_e})):
+                    sent += 1
+                else:
+                    self.storage_s1.save(jwt_s1=jwt_e)
+                    saved += 1
+
+            # Log setiap 10 slot
+            if i % 10 == 0 or i == len(slots):
+                self._log(f"[GAP] Progress {i}/{len(slots)} slot")
+
+        self._log(
+            f"[GAP] Selesai — {sent} terkirim langsung, "
+            f"{saved} disimpan ke buffer"
+        )
+        self.root.after(0, self.gui.update_buffer,
+                        self.storage_s1.count() + self.storage_s2.count())
+        if not auto:
+            self.root.after(0, self.gui.gap_btn_reset)
+
+    def trigger_gap_fill(self) -> None:
+        """Dipanggil dari tombol GUI — jalankan gap fill di background thread."""
+        self.root.after(0, self.gui.gap_btn_busy)
+        threading.Thread(
+            target=self._fill_gaps,
+            kwargs={"auto": False},
+            daemon=True,
+            name="gap_fill",
+        ).start()
 
     def _quit(self) -> None:
         self._running = False
