@@ -1823,6 +1823,23 @@ class SparingGUI:
 
         # Server & UID
         _section("SERVER & IDENTITAS")
+
+        # Toggle Server 2
+        s2_var = tk.BooleanVar(value=self.cfg.get("server2_enabled", True))
+        entry_vars["server2_enabled"] = s2_var
+        s2_row = tk.Frame(form, bg=C["bg"])
+        s2_row.grid(row=row_i[0], column=0, columnspan=3,
+                    sticky="w", pady=(0, self._sp(6)))
+        tk.Checkbutton(
+            s2_row, text="Aktifkan pengiriman ke Server 2  (KLH/BPLH)",
+            variable=s2_var,
+            bg=C["bg"], fg=C["text"],
+            activebackground=C["bg"],
+            selectcolor=C["primary"],
+            font=(_FONT_UI, self._fs(10)),
+        ).pack(side="left")
+        row_i[0] += 1
+
         for label, key in [
             ("UID 1 :",             "uid1"),
             ("UID 2 :",             "uid2"),

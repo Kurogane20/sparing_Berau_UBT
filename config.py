@@ -53,6 +53,7 @@ DEFAULT_CONFIG: dict = {
     "link_video_id":          "",
 
     # Server 2 — Kemenlhk
+    "server2_enabled":        True,    # False = nonaktifkan pengiriman ke Server 2
     "server_url2":            "https://sparing.kemenlh.go.id/api/send-hourly",
     "secret_key_url2":        "https://sparing.kemenlh.go.id/api/secret-sensor",
     "uid2":                   "tesuid2",

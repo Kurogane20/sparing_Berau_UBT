@@ -169,9 +169,12 @@ class SparingApp:
                 # Server 1: kualitas air (pH, TSS, Debit) — per 2 menit
                 self._send_s1_water(r)
 
-                # Server 2: kirim saat batch penuh
+                # Server 2: kirim saat batch penuh (jika diaktifkan)
                 if n >= batch_size:
-                    self._send_s2_batch()
+                    if self.cfg.get("server2_enabled", True):
+                        self._send_s2_batch()
+                    else:
+                        self._log("[S2] Pengiriman Server 2 dinonaktifkan — batch dibuang")
                     self.batch.clear()
                     self.root.after(0, self.gui.update_count, 0, batch_size)
 
