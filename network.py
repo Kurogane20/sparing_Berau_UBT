@@ -193,10 +193,12 @@ class NetworkManager:
         return self._make_jwt_processed(
             self.cfg["uid2"], self.secret_key2, batch)
 
-    def create_jwt1_water(self, r: SensorReading) -> str:
+    def create_jwt1_water(self, r: SensorReading,
+                          processed: bool = False) -> str:
         """
         JWT Server 1 — kualitas air (pH, TSS, Debit).
-        logger_type="internal" → data raw.  logger_type="klhk" → data processed.
+        processed=False → data raw (Internal).
+        processed=True  → data setelah apply_limits (KLHK).
         Kembalikan "" jika tidak ada sensor air yang aktif.
         """
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
@@ -210,16 +212,16 @@ class NetworkManager:
         if not (ph_on or tss_on or debit_on or temp_on):
             return ""
 
-        is_klhk = cfg.get("logger_type", "internal") == "klhk"
-        if is_klhk:
-            ph_p, tss_p, debit_p, *_ = self._apply_limits(
+        if processed:
+            ph_v, tss_v, debit_v, *_ = self._apply_limits(
                 r.ph, r.tss, r.debit, 0, 0, 0, 0)
-            ph_v, tss_v, debit_v = ph_p, tss_p, debit_p
+            uid = cfg.get("uid1_klhk") or cfg["uid1"]
         else:
             ph_v, tss_v, debit_v = r.ph, r.tss, r.debit
+            uid = cfg["uid1"]
 
         payload: dict = {
-            "uid":      cfg["uid1"],
+            "uid":      uid,
             "cod":      0,
             "nh3n":     0,
             "datetime": int(r.timestamp),
@@ -237,10 +239,12 @@ class NetworkManager:
 
     def create_jwt_s1_env(self, pm25: float, pm10: float, tsp: float,
                           noise: float, timestamp: float,
-                          link_video_id: str = "") -> str:
+                          link_video_id: str = "",
+                          processed: bool = False) -> str:
         """
         JWT Server 1 — kualitas udara (PM + noise), per 1 menit.
-        logger_type="internal" → data raw.  logger_type="klhk" → data processed.
+        processed=False → data raw (Internal).
+        processed=True  → data setelah apply_limits (KLHK).
         Kembalikan "" jika tidak ada sensor udara yang aktif.
         """
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
@@ -252,16 +256,16 @@ class NetworkManager:
         if not (dust_on or noise_on):
             return ""
 
-        is_klhk = cfg.get("logger_type", "internal") == "klhk"
-        if is_klhk:
-            _, _, _, pm25_p, pm10_p, tsp_p, noise_p = self._apply_limits(
+        if processed:
+            _, _, _, pm25_v, pm10_v, tsp_v, noise_v = self._apply_limits(
                 0, 0, 0, pm25, pm10, tsp, noise)
-            pm25_v, pm10_v, tsp_v, noise_v = pm25_p, pm10_p, tsp_p, noise_p
+            uid = cfg.get("uid1_klhk") or cfg["uid1"]
         else:
             pm25_v, pm10_v, tsp_v, noise_v = pm25, pm10, tsp, noise
+            uid = cfg["uid1"]
 
         payload: dict = {
-            "uid":      cfg["uid1"],
+            "uid":      uid,
             "tl":       cfg.get("tl_water", 1),
             "datetime": int(timestamp),
         }

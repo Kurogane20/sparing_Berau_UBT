@@ -42,9 +42,11 @@ DEFAULT_CONFIG: dict = {
     # uid1_processed: UID untuk data yang sudah di-filter min/max
     "server_url1":            "http://127.0.0.1:8000/api/post-data",
     "secret_key_url1":        "http://127.0.0.1:8000/api/get-key",
-    "uid1":                   "test",  # ganti jika server pakai UID berbeda
+    "uid1":                   "test",   # UID tipe logger Internal (data raw)
+    "uid1_klhk":             "",       # UID tipe logger KLHK (data processed), kosong = pakai uid1
     "tl_water":               1,       # tipe_logger untuk data kualitas air
-    "logger_type":            "internal",  # "internal" = raw, "klhk" = processed
+    "logger_internal":        True,    # aktifkan pengiriman data raw (Internal)
+    "logger_klhk":            False,   # aktifkan pengiriman data processed (KLHK)
 
     # Log server
     "log_url":                "http://13.215.182.25/api/log",

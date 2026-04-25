@@ -2239,16 +2239,18 @@ class SparingGUI:
         row_i[0] += 1
 
         for label, key in [
-            ("UID 1 :",             "uid1"),
+            ("UID 1  (Internal) :", "uid1"),
+            ("UID 1  (KLHK) :",     "uid1_klhk"),
             ("Server URL 1 :",      "server_url1"),
             ("Secret Key URL 1 :",  "secret_key_url1"),
         ]:
             _entry(label, key)
 
         # Tipe Logger Server 1
-        logger_var = tk.StringVar(
-            value=self.cfg.get("logger_type", "internal"))
-        entry_vars["logger_type"] = logger_var
+        int_var  = tk.BooleanVar(value=self.cfg.get("logger_internal", True))
+        klhk_var = tk.BooleanVar(value=self.cfg.get("logger_klhk",    False))
+        entry_vars["logger_internal"] = int_var
+        entry_vars["logger_klhk"]     = klhk_var
         lt_row = tk.Frame(form, bg=C["bg"])
         lt_row.grid(row=row_i[0], column=0, columnspan=3,
                     sticky="w", pady=(self._sp(4), self._sp(8)))
@@ -2256,22 +2258,22 @@ class SparingGUI:
                  bg=C["bg"], fg=C["text"],
                  font=(_FONT_UI, self._fs(10))).pack(side="left",
                                                       padx=(0, self._sp(12)))
-        tk.Radiobutton(
+        tk.Checkbutton(
             lt_row,
             text="Internal  (data raw sensor)",
-            variable=logger_var, value="internal",
+            variable=int_var,
             bg=C["bg"], fg=C["text"],
             activebackground=C["bg"],
-            selectcolor=C["card"],
+            selectcolor=C["primary"],
             font=(_FONT_UI, self._fs(9)),
         ).pack(side="left", padx=(0, self._sp(16)))
-        tk.Radiobutton(
+        tk.Checkbutton(
             lt_row,
             text="KLHK  (data processed / batas KLHK)",
-            variable=logger_var, value="klhk",
+            variable=klhk_var,
             bg=C["bg"], fg=C["text"],
             activebackground=C["bg"],
-            selectcolor=C["card"],
+            selectcolor=C["primary"],
             font=(_FONT_UI, self._fs(9)),
         ).pack(side="left")
         row_i[0] += 1

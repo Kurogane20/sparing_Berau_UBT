@@ -285,27 +285,36 @@ class SparingApp:
         Kirim data kualitas air (pH, TSS, Debit) ke Server 1 setiap 2 menit.
         Format JWT flat: uid, pH, tss, debit, cod, nh3n, datetime, tl.
         """
-        jwt = self.net.create_jwt1_water(r)
-        if not jwt:
-            return   # sensor air semua nonaktif atau secret key belum ada
-
-        online = self.net.check_internet()
-        if not online:
-            self.storage_s1.save(jwt_s1=jwt)
+        int_on  = self.cfg.get("logger_internal", True)
+        klhk_on = self.cfg.get("logger_klhk",     False)
+        jwts = []
+        if int_on:
+            j = self.net.create_jwt1_water(r, processed=False)
+            if j: jwts.append(("Internal", j))
+        if klhk_on:
+            j = self.net.create_jwt1_water(r, processed=True)
+            if j: jwts.append(("KLHK", j))
+        if not jwts:
             return
 
-        ok = self.net.post(self.cfg["server_url1"],
-                           json.dumps({"token": jwt}))
-        self.root.after(0, self.gui.update_connection, "server1", ok)
-
-        if ok:
+        online = self.net.check_internet()
+        ok_any = False
+        for tag, jwt in jwts:
+            if not online:
+                self.storage_s1.save(jwt_s1=jwt)
+                continue
+            ok = self.net.post(self.cfg["server_url1"],
+                               json.dumps({"token": jwt}))
+            self.root.after(0, self.gui.update_connection, "server1", ok)
+            if ok:
+                ok_any = True
+                self._log(f"✓ [S1-W/{tag}] pH={r.ph}  TSS={r.tss}  Debit={r.debit:.2f}")
+            else:
+                self._log(f"✗ [S1-W/{tag}] Gagal — disimpan ke buffer")
+                self.storage_s1.save(jwt_s1=jwt)
+        if ok_any:
             self.last_tx = r.timestamp
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
-            self._log(f"✓ [S1-W] pH={r.ph}  TSS={r.tss}  Debit={r.debit:.2f}")
-        else:
-            self._log("✗ [S1-W] Gagal — disimpan ke buffer")
-            self.storage_s1.save(jwt_s1=jwt)
-
         self.root.after(0, self.gui.update_buffer,
                         self.storage_s1.count() + self.storage_s2.count())
 
@@ -319,35 +328,47 @@ class SparingApp:
         Jika offline atau gagal, simpan ke buffer untuk dikirim ulang.
         """
         link_video_id = self.cfg.get("link_video_id", "")
-        jwt = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
-                                          timestamp, link_video_id)
-        if not jwt:
-            return   # sensor udara semua nonaktif atau secret key belum ada
-
-        body = json.dumps({"token": jwt})
-
-        online = self.net.check_internet()
-        if not online:
-            self.storage_s1.save(jwt_s1=jwt)
+        int_on  = self.cfg.get("logger_internal", True)
+        klhk_on = self.cfg.get("logger_klhk",     False)
+        jwts = []
+        if int_on:
+            j = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
+                                            timestamp, link_video_id,
+                                            processed=False)
+            if j: jwts.append(("Internal", j))
+        if klhk_on:
+            j = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
+                                            timestamp, link_video_id,
+                                            processed=True)
+            if j: jwts.append(("KLHK", j))
+        if not jwts:
             return
 
-        # Kirim ulang buffer lama
-        flushed = self.storage_s1.flush_s1_env(self.net)
-        if flushed:
-            self._log(f"[S1] {flushed} data lama dari buffer berhasil dikirim ulang")
+        online = self.net.check_internet()
+        # Kirim ulang buffer lama (sekali saja)
+        if online:
+            flushed = self.storage_s1.flush_s1_env(self.net)
+            if flushed:
+                self._log(f"[S1] {flushed} data lama dari buffer berhasil dikirim ulang")
 
-        ok = self.net.post(self.cfg["server_url1"], body)
-        self.root.after(0, self.gui.update_connection, "server1", ok)
-
-        if ok:
+        ok_any = False
+        for tag, jwt in jwts:
+            if not online:
+                self.storage_s1.save(jwt_s1=jwt)
+                continue
+            ok = self.net.post(self.cfg["server_url1"],
+                               json.dumps({"token": jwt}))
+            self.root.after(0, self.gui.update_connection, "server1", ok)
+            if ok:
+                ok_any = True
+                self._log(f"✓ [S1/{tag}] PM+Noise  "
+                          f"PM2.5={pm25} PM10={pm10} TSP={tsp} Noise={noise} dB")
+            else:
+                self._log(f"✗ [S1/{tag}] Gagal — disimpan ke buffer")
+                self.storage_s1.save(jwt_s1=jwt)
+        if ok_any:
             self.last_tx = timestamp
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
-            self._log(f"✓ [S1] PM+Noise terkirim  "
-                      f"(PM2.5={pm25} PM10={pm10} TSP={tsp} Noise={noise} dB)")
-        else:
-            self._log("✗ [S1] Gagal — disimpan ke buffer")
-            self.storage_s1.save(jwt_s1=jwt)
-
         self.root.after(0, self.gui.update_buffer,
                         self.storage_s1.count() + self.storage_s2.count())
 
