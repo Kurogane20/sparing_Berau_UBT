@@ -44,6 +44,7 @@ DEFAULT_CONFIG: dict = {
     "secret_key_url1":        "http://127.0.0.1:8000/api/get-key",
     "uid1":                   "test",  # ganti jika server pakai UID berbeda
     "tl_water":               1,       # tipe_logger untuk data kualitas air
+    "logger_type":            "internal",  # "internal" = raw, "klhk" = processed
 
     # Log server
     "log_url":                "http://13.215.182.25/api/log",
@@ -84,8 +85,22 @@ DEFAULT_CONFIG: dict = {
     "pm10_factor_min":        0.3,
     "pm10_factor_max":        0.4,
 
-    # Mode simulasi aktif jika pymodbus tidak tersedia
+    # Floating Mode (tanpa hardware) — aktif otomatis jika pymodbus tidak tersedia
     "simulate_sensors":       not HAS_MODBUS,
+
+    # Batas nilai acak saat floating mode aktif
+    "sim_ph_min":             7.5,
+    "sim_ph_max":             7.6,
+    "sim_tss_min":            80.0,
+    "sim_tss_max":            90.0,
+    "sim_debit_min":          0.01,
+    "sim_debit_max":          0.10,
+    "sim_tsp_min":            30.0,
+    "sim_tsp_max":            200.0,
+    "sim_noise_min":          40.0,
+    "sim_noise_max":          80.0,
+    "sim_temp_min":           25.0,
+    "sim_temp_max":           30.0,
 
     # PIN untuk membuka tampilan data processed & batas Server 2
     "secret_pin":             "1234",
@@ -94,32 +109,60 @@ DEFAULT_CONFIG: dict = {
     # Server 1 (uid1)            : data MURNI, tidak ada batas.
     # Server 1 (uid1_processed)  : data difilter — nilai diluar batas → 0.
     # Server 2 (uid2)            : data difilter — nilai diluar batas → 0.
-    # Nilai di luar [min, max] TIDAK dipaksa ke batas (tidak statis),
-    # melainkan diganti 0 agar server mengetahui data tidak valid.
-    "limit_ph_min":           0.0,
-    "limit_ph_max":           14.0,
-    "limit_ph_float":         0.3,     # lebar zona floating saat nilai di luar batas
-    "limit_tss_min":          0.0,
-    "limit_tss_max":          500.0,   # mg/L
-    "limit_tss_float":        10.0,
-    "limit_debit_min":        0.0,
-    "limit_debit_max":        100.0,   # m³/s
-    "limit_debit_float":      1.0,
-    "limit_pm25_min":         0.0,
-    "limit_pm25_max":         1000.0,  # ug/m³
-    "limit_pm25_float":       10.0,
-    "limit_pm10_min":         0.0,
-    "limit_pm10_max":         1000.0,  # ug/m³
-    "limit_pm10_float":       10.0,
-    "limit_pm100_min":        0.0,
-    "limit_pm100_max":        1000.0,  # ug/m³
-    "limit_pm100_float":      10.0,
-    "limit_noise_min":        0.0,
-    "limit_noise_max":        120.0,   # dB
-    "limit_noise_float":      2.0,
-    "limit_temp_min":         0.0,
-    "limit_temp_max":         50.0,    # °C
-    "limit_temp_float":       1.0,
+    # Nilai di luar [min, max] tapi dalam [float_min, float_max] → random di zona ambang.
+    # float_min harus ≤ limit_min;  float_max harus ≥ limit_max.
+    # Zona float berada DI DALAM [min, max].
+    # Saat value < min → random dalam [float_lo_min, float_lo_max].
+    # Saat value > max → random dalam [float_hi_min, float_hi_max].
+    # float_lo_* harus ≥ min;  float_hi_* harus ≤ max.
+    "limit_ph_min":              0.0,
+    "limit_ph_max":              14.0,
+    "limit_ph_float_lo_min":     0.3,
+    "limit_ph_float_lo_max":     0.6,
+    "limit_ph_float_hi_min":     13.4,
+    "limit_ph_float_hi_max":     13.7,
+    "limit_tss_min":             0.0,
+    "limit_tss_max":             500.0,   # mg/L
+    "limit_tss_float_lo_min":    1.0,
+    "limit_tss_float_lo_max":    5.0,
+    "limit_tss_float_hi_min":    495.0,
+    "limit_tss_float_hi_max":    499.0,
+    "limit_debit_min":           0.0,
+    "limit_debit_max":           100.0,   # m³/s
+    "limit_debit_float_lo_min":  0.1,
+    "limit_debit_float_lo_max":  1.0,
+    "limit_debit_float_hi_min":  99.0,
+    "limit_debit_float_hi_max":  99.9,
+    "limit_pm25_min":            0.0,
+    "limit_pm25_max":            1000.0,  # ug/m³
+    "limit_pm25_float_lo_min":   1.0,
+    "limit_pm25_float_lo_max":   5.0,
+    "limit_pm25_float_hi_min":   995.0,
+    "limit_pm25_float_hi_max":   999.0,
+    "limit_pm10_min":            0.0,
+    "limit_pm10_max":            1000.0,  # ug/m³
+    "limit_pm10_float_lo_min":   1.0,
+    "limit_pm10_float_lo_max":   5.0,
+    "limit_pm10_float_hi_min":   995.0,
+    "limit_pm10_float_hi_max":   999.0,
+    "limit_pm100_min":           0.0,
+    "limit_pm100_max":           1000.0,  # ug/m³
+    "limit_pm100_float_lo_min":  1.0,
+    "limit_pm100_float_lo_max":  5.0,
+    "limit_pm100_float_hi_min":  995.0,
+    "limit_pm100_float_hi_max":  999.0,
+    "limit_noise_min":           0.0,
+    "limit_noise_max":           120.0,   # dB
+    "limit_noise_float_lo_min":  1.0,
+    "limit_noise_float_lo_max":  3.0,
+    "limit_noise_float_hi_min":  117.0,
+    "limit_noise_float_hi_max":  119.0,
+    "limit_temp_min":            0.0,
+    "limit_temp_max":            50.0,    # °C
+    "limit_temp_float_lo_min":   0.5,
+    "limit_temp_float_lo_max":   1.0,
+    "limit_temp_float_hi_min":   49.0,
+    "limit_temp_float_hi_max":   49.5,
 }
 
 

@@ -85,34 +85,41 @@ class NetworkManager:
     # ── JWT ───────────────────────────────────────────────────────────────────
     @staticmethod
     def _cap_fluctuate(value: float, lo: float, hi: float,
-                       variation: float = 0.0) -> float:
+                       flo_min: float = None, flo_max: float = None,
+                       fhi_min: float = None, fhi_max: float = None) -> float:
         """
-        Jika nilai dalam [lo, hi] → kembalikan apa adanya.
-        Jika nilai di luar batas → kembalikan nilai acak di zona floating:
-          • value > hi  → acak dalam [hi - variation, hi]
-          • value < lo  → acak dalam [lo, lo + variation]
-        variation = lebar zona floating (dikonfigurasi per sensor).
+        Nilai dalam [lo, hi]  → kembalikan apa adanya.
+        Nilai < lo            → random dalam [flo_min, flo_max]  (zona float bawah, di dalam range).
+        Nilai > hi            → random dalam [fhi_min, fhi_max]  (zona float atas, di dalam range).
         """
         if lo <= value <= hi:
             return value
-        var = max(0.001, variation)
-        if value > hi:
-            return hi - random.uniform(0, var)
-        else:  # value < lo
-            return lo + random.uniform(0, var)
+        if value < lo:
+            a = lo  if flo_min is None else flo_min
+            b = lo  if flo_max is None else flo_max
+            return round(random.uniform(min(a, b), max(a, b)), 4)
+        # value > hi
+        a = hi  if fhi_min is None else fhi_min
+        b = hi  if fhi_max is None else fhi_max
+        return round(random.uniform(min(a, b), max(a, b)), 4)
 
     def _apply_limits(self, ph: float, tss: float, debit: float,
                       pm25: float = 0.0, pm10: float = 0.0,
                       pm100: float = 0.0, noise: float = 0.0):
         """Terapkan batas min/max dengan variasi fluktuatif ke semua parameter."""
         c = self.cfg
-        ph_out    = self._cap_fluctuate(ph,    c["limit_ph_min"],    c["limit_ph_max"],    c.get("limit_ph_float",    0.3))
-        tss_out   = self._cap_fluctuate(tss,   c["limit_tss_min"],   c["limit_tss_max"],   c.get("limit_tss_float",   10.0))
-        debit_out = self._cap_fluctuate(debit, c["limit_debit_min"], c["limit_debit_max"], c.get("limit_debit_float",  1.0))
-        pm25_out  = self._cap_fluctuate(pm25,  c["limit_pm25_min"],  c["limit_pm25_max"],  c.get("limit_pm25_float",  10.0))
-        pm10_out  = self._cap_fluctuate(pm10,  c["limit_pm10_min"],  c["limit_pm10_max"],  c.get("limit_pm10_float",  10.0))
-        pm100_out = self._cap_fluctuate(pm100, c["limit_pm100_min"], c["limit_pm100_max"], c.get("limit_pm100_float", 10.0))
-        noise_out = self._cap_fluctuate(noise, c.get("limit_noise_min", 0.0), c.get("limit_noise_max", 120.0), c.get("limit_noise_float", 2.0))
+        def _f(key): return (
+            c.get(f"limit_{key}_min"),   c.get(f"limit_{key}_max"),
+            c.get(f"limit_{key}_float_lo_min"), c.get(f"limit_{key}_float_lo_max"),
+            c.get(f"limit_{key}_float_hi_min"), c.get(f"limit_{key}_float_hi_max"),
+        )
+        ph_out    = self._cap_fluctuate(ph,    *_f("ph"))
+        tss_out   = self._cap_fluctuate(tss,   *_f("tss"))
+        debit_out = self._cap_fluctuate(debit, *_f("debit"))
+        pm25_out  = self._cap_fluctuate(pm25,  *_f("pm25"))
+        pm10_out  = self._cap_fluctuate(pm10,  *_f("pm10"))
+        pm100_out = self._cap_fluctuate(pm100, *_f("pm100"))
+        noise_out = self._cap_fluctuate(noise, *_f("noise"))
         return ph_out, tss_out, debit_out, pm25_out, pm10_out, pm100_out, noise_out
 
     def _build_row(self, r: SensorReading, processed: bool = False) -> dict:
@@ -189,7 +196,7 @@ class NetworkManager:
     def create_jwt1_water(self, r: SensorReading) -> str:
         """
         JWT Server 1 — kualitas air (pH, TSS, Debit).
-        Hanya menyertakan field sensor yang aktif.
+        logger_type="internal" → data raw.  logger_type="klhk" → data processed.
         Kembalikan "" jika tidak ada sensor air yang aktif.
         """
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
@@ -200,9 +207,16 @@ class NetworkManager:
         debit_on = cfg.get("sensor_debit_enabled", True)
         temp_on  = cfg.get("sensor_temp_enabled",  True)
 
-        # Tidak ada sensor air aktif — tidak perlu kirim
         if not (ph_on or tss_on or debit_on or temp_on):
             return ""
+
+        is_klhk = cfg.get("logger_type", "internal") == "klhk"
+        if is_klhk:
+            ph_p, tss_p, debit_p, *_ = self._apply_limits(
+                r.ph, r.tss, r.debit, 0, 0, 0, 0)
+            ph_v, tss_v, debit_v = ph_p, tss_p, debit_p
+        else:
+            ph_v, tss_v, debit_v = r.ph, r.tss, r.debit
 
         payload: dict = {
             "uid":      cfg["uid1"],
@@ -211,9 +225,9 @@ class NetworkManager:
             "datetime": int(r.timestamp),
             "tl":       cfg.get("tl_water", 1),
         }
-        if ph_on:    payload["pH"]    = round(r.ph,    2)
-        if tss_on:   payload["tss"]   = round(r.tss,   2)
-        if debit_on: payload["debit"] = round(r.debit, 2)
+        if ph_on:    payload["pH"]    = round(ph_v,    2)
+        if tss_on:   payload["tss"]   = round(tss_v,   2)
+        if debit_on: payload["debit"] = round(debit_v, 2)
         if temp_on:  payload["temp"]  = round(r.temp,  1)
         try:
             return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
@@ -226,7 +240,7 @@ class NetworkManager:
                           link_video_id: str = "") -> str:
         """
         JWT Server 1 — kualitas udara (PM + noise), per 1 menit.
-        Hanya menyertakan field sensor yang aktif.
+        logger_type="internal" → data raw.  logger_type="klhk" → data processed.
         Kembalikan "" jika tidak ada sensor udara yang aktif.
         """
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
@@ -235,9 +249,16 @@ class NetworkManager:
         dust_on  = cfg.get("sensor_dust_enabled",  True)
         noise_on = cfg.get("sensor_noise_enabled", True)
 
-        # Tidak ada sensor udara aktif — tidak perlu kirim
         if not (dust_on or noise_on):
             return ""
+
+        is_klhk = cfg.get("logger_type", "internal") == "klhk"
+        if is_klhk:
+            _, _, _, pm25_p, pm10_p, tsp_p, noise_p = self._apply_limits(
+                0, 0, 0, pm25, pm10, tsp, noise)
+            pm25_v, pm10_v, tsp_v, noise_v = pm25_p, pm10_p, tsp_p, noise_p
+        else:
+            pm25_v, pm10_v, tsp_v, noise_v = pm25, pm10, tsp, noise
 
         payload: dict = {
             "uid":      cfg["uid1"],
@@ -245,11 +266,11 @@ class NetworkManager:
             "datetime": int(timestamp),
         }
         if dust_on:
-            payload["pm2.5"] = round(pm25, 1)
-            payload["pm10"]  = round(pm10, 1)
-            payload["tsp"]   = round(tsp,  1)
+            payload["pm2.5"] = round(pm25_v, 1)
+            payload["pm10"]  = round(pm10_v, 1)
+            payload["tsp"]   = round(tsp_v,  1)
         if noise_on:
-            payload["noise"] = round(noise, 1)
+            payload["noise"] = round(noise_v, 1)
         if link_video_id:
             payload["link_video_id"] = link_video_id
         try:

@@ -52,6 +52,7 @@ class SparingApp:
         self._q: queue.Queue = queue.Queue()
         self._noise_buf: List[float] = []         # buffer sampel noise 1 menit
         self._noise_buf_lock = threading.Lock()   # proteksi akses antar-thread
+        self._sensor_wake = threading.Event()     # set() untuk mempersingkat sleep sensor loop
 
     def start(self) -> None:
         # Inisialisasi sensor reader (gagal graceful → simulasi aktif)
@@ -140,7 +141,11 @@ class SparingApp:
                 if self.cfg.get("sensor_noise_enabled", True):
                     with self._noise_buf_lock:
                         buf_copy = list(self._noise_buf)
-                    r.noise = self._compute_leq(buf_copy)
+                    leq = self._compute_leq(buf_copy)
+                    # Pakai Leq dari buffer jika tersedia; jika buffer masih kosong
+                    # (< 1 menit pertama) pertahankan nilai dari _simulate()
+                    if leq > 0:
+                        r.noise = leq
 
                 self.batch.append(r)
                 n        = len(self.batch)
@@ -182,7 +187,8 @@ class SparingApp:
                 self._log(f"[ERROR] sensor loop: {e}")
                 self.root.after(0, self.gui.update_connection, "rs485", False)
 
-            time.sleep(interval)
+            self._sensor_wake.wait(timeout=interval)
+            self._sensor_wake.clear()
 
     # ── Network loop (background thread) ──────────────────────────────────────
     def _network_loop(self) -> None:
@@ -237,7 +243,9 @@ class SparingApp:
                 if self.cfg.get("sensor_noise_enabled", True):
                     noise = (self.sensor_rdr.read_noise_safe()
                              if self.sensor_rdr
-                             else round(random.uniform(40.0, 80.0), 1))
+                             else round(random.uniform(
+                                 self.cfg.get("sim_noise_min", 40.0),
+                                 self.cfg.get("sim_noise_max", 80.0)), 1))
                     if noise > 0:
                         with self._noise_buf_lock:
                             self._noise_buf.append(noise)
@@ -252,7 +260,9 @@ class SparingApp:
                     if self.sensor_rdr:
                         pm25, pm10, tsp = self.sensor_rdr.read_dust_safe()
                     else:
-                        tsp  = round(random.uniform(30, 200), 1)
+                        tsp  = round(random.uniform(
+                                self.cfg.get("sim_tsp_min", 30.0),
+                                self.cfg.get("sim_tsp_max", 200.0)), 1)
                         pm25 = round(random.uniform(
                             self.cfg.get("pm25_factor_min", 0.1),
                             self.cfg.get("pm25_factor_max", 0.2)) * tsp, 1)
@@ -408,16 +418,51 @@ class SparingApp:
         mean_energy = sum(10 ** (v / 10) for v in valid) / len(valid)
         return round(10 * math.log10(mean_energy), 1)
 
-    # ── Simulasi data sensor (tanpa hardware) ──────────────────────────────────
-    @staticmethod
-    def _simulate() -> SensorReading:
+    # ── Floating Mode — data acak dalam batas yang dikonfigurasi ─────────────
+    def _simulate(self) -> SensorReading:
+        c   = self.cfg
+        tsp = round(random.uniform(c.get("sim_tsp_min",  30.0),
+                                   c.get("sim_tsp_max", 200.0)), 1)
+        f25 = random.uniform(c.get("pm25_factor_min", 0.1), c.get("pm25_factor_max", 0.2))
+        f10 = random.uniform(c.get("pm10_factor_min", 0.3), c.get("pm10_factor_max", 0.4))
         return SensorReading(
             timestamp = time.time(),
-            ph        = round(random.uniform(7.5,  7.6),  2),
-            tss       = round(random.uniform(80.0, 90.0), 2),
-            debit     = round(random.uniform(0.01, 0.10), 2),
-            temp      = round(random.uniform(25.0, 30.0), 1),
+            ph        = round(random.uniform(c.get("sim_ph_min",    7.5),
+                                             c.get("sim_ph_max",    7.6)),  2),
+            tss       = round(random.uniform(c.get("sim_tss_min",   80.0),
+                                             c.get("sim_tss_max",   90.0)), 2),
+            debit     = round(random.uniform(c.get("sim_debit_min", 0.01),
+                                             c.get("sim_debit_max", 0.10)), 2),
+            temp      = round(random.uniform(c.get("sim_temp_min",  25.0),
+                                             c.get("sim_temp_max",  30.0)), 1),
+            pm100     = tsp,
+            pm25      = round(f25 * tsp, 1),
+            pm10      = round(f10 * tsp, 1),
+            noise     = round(random.uniform(c.get("sim_noise_min", 40.0),
+                                             c.get("sim_noise_max", 80.0)), 1),
         )
+
+    def toggle_test_mode(self) -> None:
+        """Aktifkan/nonaktifkan floating mode dari tombol GUI."""
+        self.cfg["simulate_sensors"] = not self.cfg.get("simulate_sensors", False)
+        save_config(self.cfg)
+        is_test = self.cfg["simulate_sensors"]
+        self.root.after(0, self.gui.update_test_mode_btn, is_test)
+        if is_test:
+            if self.sensor_rdr:
+                self.sensor_rdr._mb      = None
+                self.sensor_rdr._port_ok = False
+            self._log("[MODE] Floating Mode diaktifkan — data dari sensor dinonaktifkan")
+        else:
+            self._log("[MODE] Floating Mode dinonaktifkan — mencoba koneksi hardware...")
+            def _do_reconnect():
+                ok   = self.sensor_rdr.reconnect() if self.sensor_rdr else False
+                port = self.cfg.get("serial_port", "—")
+                self.root.after(0, self.gui.update_connection, "rs485", ok)
+                self.root.after(0, self.gui.log,
+                                f"RS485 {'terhubung' if ok else 'GAGAL'} — {port}")
+            threading.Thread(target=_do_reconnect,
+                             daemon=True, name="reconnect_fm").start()
 
     # ── Gap fill — isi slot kosong ke Server 1 ────────────────────────────────
     def _fill_gaps(self, auto: bool = False) -> None:
