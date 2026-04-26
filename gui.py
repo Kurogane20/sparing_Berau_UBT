@@ -176,8 +176,9 @@ class SparingGUI:
         title_col = tk.Frame(row, bg=C["panel"])
         title_col.pack(side="left", fill="y")
 
+        self._app_title_var = tk.StringVar(value=self._get_app_title())
         tk.Label(title_col,
-                 text="SISTEM PEMANTAUAN KUALITAS AIR",
+                 textvariable=self._app_title_var,
                  bg=C["panel"], fg=C["text"],
                  font=(_FONT_UI, self._fs(13), "bold")).pack(anchor="w")
 
@@ -337,13 +338,6 @@ class SparingGUI:
         tk.Label(inner, text=unit,
                  bg=bg, fg=label_color,
                  font=(_FONT_UI, f_unit)).pack()
-
-        # Mini line chart
-        chart_h = self._sp(18 if self._small else 24)
-        cv = tk.Canvas(inner, bg=bg, highlightthickness=0, height=chart_h)
-        cv.pack(fill="x", padx=self._sp(8), pady=(self._sp(3), 0))
-        self._chart_canvases[key] = cv
-        self._chart_data[key] = deque(maxlen=30)
 
         tk.Frame(inner, bg=label_color, height=1).pack(
             fill="x", padx=px_sep,
@@ -553,13 +547,6 @@ class SparingGUI:
                  bg=bg, fg=label_color,
                  font=(_FONT_UI, self._fs(9))).pack()
 
-        # Mini line chart
-        chart_h = self._sp(20 if self._small else 28)
-        cv = tk.Canvas(inner, bg=bg, highlightthickness=0, height=chart_h)
-        cv.pack(fill="x", padx=self._sp(6), pady=(self._sp(2), 0))
-        self._chart_canvases[key] = cv
-        self._chart_data[key] = deque(maxlen=30)
-
         tk.Frame(inner, bg=label_color, height=1).pack(
             fill="x", padx=self._sp(10),
             pady=(self._sp(2), self._sp(1)))
@@ -659,16 +646,26 @@ class SparingGUI:
         sg.pack(fill="both", expand=True, padx=pad, pady=(pad, px))
 
         cfg = self.cfg
-        dust_on  = cfg.get("sensor_dust_enabled",  True)
+        dust_on      = cfg.get("sensor_dust_enabled",  True)
         noise_on_cfg = cfg.get("sensor_noise_enabled", True)
         temp_on_cfg  = cfg.get("sensor_temp_enabled",  True)
 
-        sg.columnconfigure(0, weight=1)
-        sg.columnconfigure(1, weight=1)
-        sg.columnconfigure(2, weight=1)
-        sg.rowconfigure(0, weight=4)
-        sg.rowconfigure(1, weight=3 if dust_on else 0)
-        sg.rowconfigure(2, weight=2 if (noise_on_cfg or temp_on_cfg) else 0)
+        # Ketika hanya sensor air + suhu aktif (tanpa debu/noise):
+        # pakai layout 4-kolom — SUHU masuk baris yang sama dengan pH/TSS/DEBIT
+        four_col = temp_on_cfg and not dust_on and not noise_on_cfg
+
+        if four_col:
+            for c in range(4):
+                sg.columnconfigure(c, weight=1)
+            sg.rowconfigure(0, weight=1)
+            sg.rowconfigure(1, weight=0)
+            sg.rowconfigure(2, weight=0)
+        else:
+            for c in range(3):
+                sg.columnconfigure(c, weight=1)
+            sg.rowconfigure(0, weight=4)
+            sg.rowconfigure(1, weight=3 if dust_on else 0)
+            sg.rowconfigure(2, weight=2 if (noise_on_cfg or temp_on_cfg) else 0)
 
         f_main_lbl  = self._fs(11 if self._small else 14)
         f_main_val  = self._fs(38 if self._small else 50)
@@ -677,6 +674,12 @@ class SparingGUI:
         f_sub_val   = self._fs(26 if self._small else 36)
         f_sub_unit  = self._fs(8  if self._small else 10)
         chart_h     = self._sp(20 if self._small else 26)
+
+        # Font lebih kecil untuk 4 kolom agar muat di layar
+        if four_col:
+            f_main_lbl  = self._fs(9  if self._small else 12)
+            f_main_val  = self._fs(28 if self._small else 38)
+            f_main_unit = self._fs(8  if self._small else 10)
 
         def _value_card(key, label, unit, bg, lc, row, col, colspan=1,
                         f_lbl=f_main_lbl, f_val=f_main_val, f_unit=f_main_unit):
@@ -695,21 +698,23 @@ class SparingGUI:
             if unit:
                 tk.Label(vf, text=unit, bg=bg, fg=lc,
                          font=(_FONT_UI, f_unit)).pack()
-            cv = tk.Canvas(inner, bg=bg, highlightthickness=0, height=chart_h)
-            cv.pack(side="bottom", fill="x",
-                    padx=self._sp(12), pady=(0, self._sp(5)))
-            self._locked_chart_canvases[key] = cv
             return _cv
 
         # Baris 0 — kualitas air
-        for col, (cfg_key, key, label, unit, bg, lc) in enumerate([
+        water_sensors = [
             ("sensor_ph_enabled",    "ph",    "pH",    "",     C["s_ph"],    "#A8CCFF"),
             ("sensor_tss_enabled",   "tss",   "TSS",   "mg/L", C["s_tss"],   "#A0D8F0"),
             ("sensor_debit_enabled", "debit", "DEBIT", "m³/s", C["s_debit"], "#9AECD8"),
-        ]):
+        ]
+        for col, (cfg_key, key, label, unit, bg, lc) in enumerate(water_sensors):
             card = _value_card(key, label, unit, bg, lc, row=0, col=col)
             if not cfg.get(cfg_key, True):
                 card.grid_remove()
+
+        # SUHU masuk baris 0 sebagai kolom ke-4 (layout 4-kolom)
+        if four_col:
+            _value_card("temp", "SUHU AIR", "°C", "#BF360C", "#FFAB91",
+                        row=0, col=3, colspan=1)
 
         # Baris 1 — kualitas udara / PM
         for col, (key, label, unit, bg, lc) in enumerate([
@@ -723,43 +728,45 @@ class SparingGUI:
             if not cfg.get("sensor_dust_enabled", True):
                 card.grid_remove()
 
-        # Baris 2 — noise + suhu
-        noise_on = noise_on_cfg
-        temp_on  = temp_on_cfg
+        # Baris 2 — noise + suhu (hanya jika bukan layout 4-kolom)
+        if not four_col:
+            noise_on = noise_on_cfg
+            temp_on  = temp_on_cfg
 
-        if noise_on:
-            nc = 2 if temp_on else 3
-            _cv, ni = self._locked_rounded_card(sg, "#4A148C", row=2,
-                                                 col=0, colspan=nc, px=px)
-            nbg, nlc = "#4A148C", "#CE93D8"
-            lf = tk.Frame(ni, bg=nbg)
-            lf.place(relx=0.25, rely=0.5, anchor="center")
-            tk.Label(lf, text="INSTAN", bg=nbg, fg=nlc,
-                     font=(_FONT_UI, f_sub_lbl, "bold")).pack()
-            tk.Label(lf, textvariable=self._sensor_vars["noise_instant"],
-                     bg=nbg, fg="white",
-                     font=(_FONT_MONO, f_sub_val, "bold")).pack(
-                pady=(self._sp(1), 0))
-            tk.Label(lf, text="dB", bg=nbg, fg=nlc,
-                     font=(_FONT_UI, f_sub_unit)).pack()
-            tk.Frame(ni, bg=nlc, width=1).place(relx=0.5, rely=0.1, relheight=0.8)
-            rf = tk.Frame(ni, bg=nbg)
-            rf.place(relx=0.75, rely=0.5, anchor="center")
-            tk.Label(rf, text="Leq  (10 min)", bg=nbg, fg=nlc,
-                     font=(_FONT_UI, f_sub_lbl, "bold")).pack()
-            tk.Label(rf, textvariable=self._sensor_vars["noise_leq"],
-                     bg=nbg, fg="white",
-                     font=(_FONT_MONO, f_sub_val, "bold")).pack(
-                pady=(self._sp(1), 0))
-            tk.Label(rf, text="dB", bg=nbg, fg=nlc,
-                     font=(_FONT_UI, f_sub_unit)).pack()
+            if noise_on:
+                nc = 2 if temp_on else 3
+                _cv, ni = self._locked_rounded_card(sg, "#4A148C", row=2,
+                                                     col=0, colspan=nc, px=px)
+                nbg, nlc = "#4A148C", "#CE93D8"
+                lf = tk.Frame(ni, bg=nbg)
+                lf.place(relx=0.25, rely=0.5, anchor="center")
+                tk.Label(lf, text="INSTAN", bg=nbg, fg=nlc,
+                         font=(_FONT_UI, f_sub_lbl, "bold")).pack()
+                tk.Label(lf, textvariable=self._sensor_vars["noise_instant"],
+                         bg=nbg, fg="white",
+                         font=(_FONT_MONO, f_sub_val, "bold")).pack(
+                    pady=(self._sp(1), 0))
+                tk.Label(lf, text="dB", bg=nbg, fg=nlc,
+                         font=(_FONT_UI, f_sub_unit)).pack()
+                tk.Frame(ni, bg=nlc, width=1).place(relx=0.5, rely=0.1, relheight=0.8)
+                rf = tk.Frame(ni, bg=nbg)
+                rf.place(relx=0.75, rely=0.5, anchor="center")
+                tk.Label(rf, text="Leq  (10 min)", bg=nbg, fg=nlc,
+                         font=(_FONT_UI, f_sub_lbl, "bold")).pack()
+                tk.Label(rf, textvariable=self._sensor_vars["noise_leq"],
+                         bg=nbg, fg="white",
+                         font=(_FONT_MONO, f_sub_val, "bold")).pack(
+                    pady=(self._sp(1), 0))
+                tk.Label(rf, text="dB", bg=nbg, fg=nlc,
+                         font=(_FONT_UI, f_sub_unit)).pack()
 
-        if temp_on:
-            # Jika noise aktif: temp di col 2 (1/3 kanan)
-            # Jika noise nonaktif: temp di col 1 (tengah, 1/3 lebar) — tidak full-width
-            _value_card("temp", "SUHU AIR", "°C", "#BF360C", "#FFAB91",
-                        row=2, col=(2 if noise_on else 1), colspan=1,
-                        f_lbl=f_sub_lbl, f_val=f_sub_val, f_unit=f_sub_unit)
+            if temp_on:
+                # noise aktif: temp di col 2 (1/3 kanan)
+                # noise nonaktif: temp di col 0 colspan=2 (2/3 kiri)
+                _value_card("temp", "SUHU AIR", "°C", "#BF360C", "#FFAB91",
+                            row=2, col=(2 if noise_on else 0),
+                            colspan=(1 if noise_on else 2),
+                            f_lbl=f_sub_lbl, f_val=f_sub_val, f_unit=f_sub_unit)
 
     def _build_locked_status_panel(self, parent: tk.Frame) -> None:
         """Panel kiri bawah — STATUS PENGIRIMAN."""
@@ -1136,6 +1143,22 @@ class SparingGUI:
                  font=(_FONT_UI, self._fs(7))).pack(anchor="w", pady=(2, 0))
         self._refresh_gap_info()
 
+    def _get_app_title(self) -> str:
+        water_on = any(self.cfg.get(k, True)
+                       for k in ("sensor_ph_enabled", "sensor_tss_enabled",
+                                 "sensor_debit_enabled", "sensor_temp_enabled"))
+        env_on   = self.cfg.get("sensor_dust_enabled",  True) or \
+                   self.cfg.get("sensor_noise_enabled", True)
+        if water_on:
+            return "SISTEM PEMANTAUAN KUALITAS AIR"
+        if env_on:
+            return "SISTEM PEMANTAUAN KUALITAS UDARA"
+        return "SISTEM PEMANTAUAN KUALITAS AIR"
+
+    def _update_app_title(self) -> None:
+        if hasattr(self, "_app_title_var"):
+            self._app_title_var.set(self._get_app_title())
+
     # ═══════════════════════════════════════════════════════════════════════════
     # FOOTER
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1404,6 +1427,7 @@ class SparingGUI:
 
         # ── Batas — ikuti sensor yang aktif ──────────────────────────────────
         self.apply_limits_visibility()
+        self._update_app_title()
 
     def apply_limits_visibility(self) -> None:
         """Tampilkan baris batas hanya untuk sensor yang aktif."""
@@ -1689,10 +1713,6 @@ class SparingGUI:
         self._build_locked_overlay()
         self._locked_overlay.pack(fill="both", expand=True)
 
-        # Gambar ulang chart yang sudah ada
-        for key in list(self._chart_data.keys()):
-            self._draw_chart(key)
-
         self.log("🔒 Tampilan data processed & batas disembunyikan")
 
     # ── Clock ─────────────────────────────────────────────────────────────────
@@ -1810,12 +1830,6 @@ class SparingGUI:
         self._sensor_vars["pm100"].set(f"{r.pm100:.1f}")
         self._sensor_vars["noise_leq"].set(f"{r.noise:.1f}")
         self._sensor_vars["temp"].set(f"{r.temp:.1f}")
-        # Update chart data
-        for k, v in [("ph", r.ph), ("tss", r.tss), ("debit", r.debit),
-                     ("pm25", r.pm25), ("pm10", r.pm10), ("pm100", r.pm100)]:
-            if k in self._chart_data:
-                self._chart_data[k].append(v)
-                self._draw_chart(k)
 
     def update_sensors_processed(self, ph: float, tss: float,
                                   debit: float) -> None:
@@ -2528,6 +2542,7 @@ class SparingGUI:
             self._port_var.set(port)
             self.update_limits()
             self.apply_limits_visibility()
+            self._update_app_title()
             # Hitung ulang nilai processed segera dengan batas baru
             if self.app.batch:
                 last_r = self.app.batch[-1]
