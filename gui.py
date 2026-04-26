@@ -720,7 +720,7 @@ class SparingGUI:
         for col, (key, label, unit, bg, lc) in enumerate([
             ("pm25",  "PM 2.5", "ug/m³", "#37474F", "#90A4AE"),
             ("pm10",  "PM 10",  "ug/m³", "#37474F", "#80CBC4"),
-            ("pm100", "PM 100", "ug/m³", "#37474F", "#FFCC80"),
+            ("pm100", "TSP", "ug/m³", "#37474F", "#FFCC80"),
         ]):
             card = _value_card(key, label, unit, bg, lc, row=1, col=col,
                                f_lbl=f_sub_lbl, f_val=f_sub_val,
