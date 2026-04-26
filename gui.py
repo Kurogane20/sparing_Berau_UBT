@@ -145,7 +145,6 @@ class SparingGUI:
         self._build_sensor_row()
         self._build_dust_row()
         self._build_noise_row()
-        self._build_temp_row()
         self._build_body()
         # Mulai dalam mode terkunci — overlay dipasang setelah widget selesai render
         self.root.after(200, self._lock)
@@ -401,119 +400,134 @@ class SparingGUI:
         self._sensor_cards["sensor_dust_enabled"] = (wrap,)
 
     def _build_noise_row(self) -> None:
-        """Baris kartu sensor kebisingan — nilai instan (1 menit) dan Leq (10 menit)."""
+        """Baris kartu sensor kebisingan + suhu air — side by side (noise 2/3, suhu 1/3)."""
         wrap = tk.Frame(self._content_frame, bg=C["bg"])
         wrap.pack(fill="x", padx=self._sp(14), pady=(self._sp(3), 0))
         self._noise_row_frame = wrap
-        if not self.cfg.get("sensor_noise_enabled", True):
+        self._temp_row_frame  = wrap  # shared frame
+
+        noise_on = self.cfg.get("sensor_noise_enabled", True)
+        temp_on  = self.cfg.get("sensor_temp_enabled",  True)
+        if not noise_on and not temp_on:
             wrap.pack_forget()
 
-        tk.Label(wrap, text="KEBISINGAN  (Sound Level Meter)",
-                 bg=C["bg"], fg=C["text_muted"],
-                 font=(_FONT_UI, self._fs(7), "bold")).pack(
-            anchor="w", pady=(0, self._sp(2)))
+        # Grid row yang menampung kedua kartu
+        card_row = tk.Frame(wrap, bg=C["bg"])
+        card_row.pack(fill="x")
+        self._noise_card_row = card_row
+        card_row.columnconfigure(0, weight=2)
+        card_row.columnconfigure(1, weight=1)
 
-        bg, lc = "#4A148C", "#CE93D8"
-        canvas, inner = self._rounded_canvas(wrap, bg, radius=self._sp(14))
-        canvas.pack(fill="x", padx=self._sp(6))
+        # ── Kartu Kebisingan (kolom 0) ────────────────────────────────────────
+        bg_n, lc_n = "#4A148C", "#CE93D8"
+        noise_canvas, noise_inner = self._rounded_canvas(card_row, bg_n, radius=self._sp(14))
+        noise_canvas.grid(row=0, column=0, sticky="nsew",
+                          padx=(self._sp(6), self._sp(3)), pady=self._sp(2))
+        self._noise_canvas = noise_canvas
         self._sensor_cards["sensor_noise_enabled"] = (wrap,)
 
         py    = self._sp(3 if self._small else 4)
         f_val = self._fs(22 if self._small else 28)
         f_lbl = self._fs(10 if self._small else 12)
 
-        # ── Baris atas: Instan | Leq ──────────────────────────────────────────
-        top_row = tk.Frame(inner, bg=bg)
+        # Instan | Leq
+        top_row = tk.Frame(noise_inner, bg=bg_n)
         top_row.pack(fill="x")
 
-        # Kolom kiri — nilai instan (per 1 menit)
-        left = tk.Frame(top_row, bg=bg)
+        left = tk.Frame(top_row, bg=bg_n)
         left.pack(side="left", expand=True, fill="both", padx=(self._sp(8), 0))
 
         tk.Label(left, text="INSTAN",
-                 bg=bg, fg=lc, font=(_FONT_UI, f_lbl, "bold")).pack(pady=(py, 0))
+                 bg=bg_n, fg=lc_n, font=(_FONT_UI, f_lbl, "bold")).pack(pady=(py, 0))
 
         instant_var = tk.StringVar(value="0.0")
         self._sensor_vars["noise_instant"] = instant_var
         tk.Label(left, textvariable=instant_var,
-                 bg=bg, fg="white", font=(_FONT_MONO, f_val, "bold")).pack(
+                 bg=bg_n, fg="white", font=(_FONT_MONO, f_val, "bold")).pack(
             pady=(self._sp(1), 0))
-
         tk.Label(left, text="dB",
-                 bg=bg, fg=lc, font=(_FONT_UI, self._fs(9))).pack(pady=(0, py))
+                 bg=bg_n, fg=lc_n, font=(_FONT_UI, self._fs(9))).pack(pady=(0, py))
 
-        # Pemisah vertikal
-        tk.Frame(top_row, bg=lc, width=1).pack(
-            side="left", fill="y", pady=self._sp(8))
+        tk.Frame(top_row, bg=lc_n, width=1).pack(side="left", fill="y", pady=self._sp(8))
 
-        # Kolom kanan — Leq 10 menit
-        right = tk.Frame(top_row, bg=bg)
+        right = tk.Frame(top_row, bg=bg_n)
         right.pack(side="left", expand=True, fill="both", padx=(0, self._sp(8)))
 
         tk.Label(right, text="Leq  (10 min)",
-                 bg=bg, fg=lc, font=(_FONT_UI, f_lbl, "bold")).pack(pady=(py, 0))
+                 bg=bg_n, fg=lc_n, font=(_FONT_UI, f_lbl, "bold")).pack(pady=(py, 0))
 
         leq_var = tk.StringVar(value="0.0")
         self._sensor_vars["noise_leq"] = leq_var
         tk.Label(right, textvariable=leq_var,
-                 bg=bg, fg="white", font=(_FONT_MONO, f_val, "bold")).pack(
+                 bg=bg_n, fg="white", font=(_FONT_MONO, f_val, "bold")).pack(
             pady=(self._sp(1), 0))
-
         tk.Label(right, text="dB",
-                 bg=bg, fg=lc, font=(_FONT_UI, self._fs(9))).pack(pady=(0, py))
+                 bg=bg_n, fg=lc_n, font=(_FONT_UI, self._fs(9))).pack(pady=(0, py))
 
-        # ── Baris bawah: Processed Leq (tampil saat unlocked) ────────────────
-        tk.Frame(inner, bg=lc, height=1).pack(
-            fill="x", padx=self._sp(12),
-            pady=(self._sp(2), self._sp(1)))
-
-        proc_row = tk.Frame(inner, bg=bg)
+        # Processed Leq
+        tk.Frame(noise_inner, bg=lc_n, height=1).pack(
+            fill="x", padx=self._sp(12), pady=(self._sp(2), self._sp(1)))
+        proc_row = tk.Frame(noise_inner, bg=bg_n)
         proc_row.pack(pady=(0, py))
-
         tk.Label(proc_row, text="PROCESSED  Leq",
-                 bg=bg, fg=lc,
-                 font=(_FONT_UI, self._fs(6), "bold")).pack()
-
+                 bg=bg_n, fg=lc_n, font=(_FONT_UI, self._fs(6), "bold")).pack()
         proc_var = tk.StringVar(value="●  ●  ●")
         self._proc_vars["noise"] = proc_var
-        tk.Label(proc_row, textvariable=proc_var,
-                 bg=bg, fg=lc,
+        tk.Label(proc_row, textvariable=proc_var, bg=bg_n, fg=lc_n,
                  font=(_FONT_MONO, self._fs(9 if self._small else 11), "bold")).pack()
 
-    def _build_temp_row(self) -> None:
-        """Baris kartu sensor suhu air."""
-        wrap = tk.Frame(self._content_frame, bg=C["bg"])
-        wrap.pack(fill="x", padx=self._sp(14), pady=(self._sp(3), 0))
-        self._temp_row_frame = wrap
-        if not self.cfg.get("sensor_temp_enabled", True):
-            wrap.pack_forget()
-
-        tk.Label(wrap, text="SUHU AIR",
-                 bg=C["bg"], fg=C["text_muted"],
-                 font=(_FONT_UI, self._fs(7), "bold")).pack(
-            anchor="w", pady=(0, self._sp(2)))
-
-        bg, lc = "#BF360C", "#FFAB91"
-        canvas, inner = self._rounded_canvas(wrap, bg, radius=self._sp(14))
-        canvas.pack(fill="x", padx=self._sp(6))
+        # ── Kartu Suhu Air (kolom 1) ──────────────────────────────────────────
+        bg_t, lc_t = "#BF360C", "#FFAB91"
+        temp_canvas, temp_inner = self._rounded_canvas(card_row, bg_t, radius=self._sp(14))
+        temp_canvas.grid(row=0, column=1, sticky="nsew",
+                         padx=(self._sp(3), self._sp(6)), pady=self._sp(2))
+        self._temp_canvas = temp_canvas
         self._sensor_cards["sensor_temp_enabled"] = (wrap,)
 
-        py    = self._sp(2 if self._small else 3)
-        f_val = self._fs(18 if self._small else 22)
+        py_t  = self._sp(2 if self._small else 3)
+        f_val_t = self._fs(18 if self._small else 22)
 
-        tk.Label(inner, text="SUHU",
-                 bg=bg, fg=lc,
+        tk.Label(temp_inner, text="SUHU AIR",
+                 bg=bg_t, fg=lc_t,
                  font=(_FONT_UI, self._fs(10 if self._small else 12), "bold")).pack(
-            pady=(py, 0))
+            pady=(py_t, 0))
 
         temp_var = tk.StringVar(value="0.0")
         self._sensor_vars["temp"] = temp_var
-        tk.Label(inner, textvariable=temp_var,
-                 bg=bg, fg="white", font=(_FONT_MONO, f_val, "bold")).pack(
+        tk.Label(temp_inner, textvariable=temp_var,
+                 bg=bg_t, fg="white", font=(_FONT_MONO, f_val_t, "bold")).pack(
             pady=(self._sp(1), 0))
+        tk.Label(temp_inner, text="°C",
+                 bg=bg_t, fg=lc_t, font=(_FONT_UI, self._fs(9))).pack(pady=(0, py_t))
 
-        tk.Label(inner, text="°C",
-                 bg=bg, fg=lc, font=(_FONT_UI, self._fs(9))).pack(pady=(0, py))
+        # Atur layout awal sesuai sensor aktif
+        self._update_noise_temp_layout(noise_on, temp_on)
+
+    def _update_noise_temp_layout(self, noise_on: bool, temp_on: bool) -> None:
+        """Atur grid noise/suhu: side-by-side, atau full-width jika salah satu nonaktif."""
+        if not hasattr(self, "_noise_canvas") or not hasattr(self, "_temp_canvas"):
+            return
+        nc, tc = self._noise_canvas, self._temp_canvas
+        cr = self._noise_card_row
+        nc.grid_remove()
+        tc.grid_remove()
+        px6 = self._sp(6)
+        px3 = self._sp(3)
+        if noise_on and temp_on:
+            nc.grid(row=0, column=0, sticky="nsew", padx=(px6, px3), pady=self._sp(2))
+            tc.grid(row=0, column=1, sticky="nsew", padx=(px3, px6), pady=self._sp(2))
+            cr.columnconfigure(0, weight=2)
+            cr.columnconfigure(1, weight=1)
+        elif noise_on:
+            nc.grid(row=0, column=0, columnspan=2, sticky="nsew",
+                    padx=px6, pady=self._sp(2))
+            cr.columnconfigure(0, weight=1)
+            cr.columnconfigure(1, weight=0)
+        elif temp_on:
+            tc.grid(row=0, column=0, columnspan=2, sticky="nsew",
+                    padx=px6, pady=self._sp(2))
+            cr.columnconfigure(0, weight=1)
+            cr.columnconfigure(1, weight=0)
 
     def _dust_card(self, parent, key: str, label: str,
                    unit: str, bg: str, label_color: str) -> tk.Canvas:
@@ -1358,7 +1372,7 @@ class SparingGUI:
         sp_sub   = (self._sp(3 if self._small else 4), 0)
 
         all_rows = [self._main_sensor_row, self._dust_row_frame,
-                    self._noise_row_frame, self._temp_row_frame]
+                    self._noise_row_frame]
         body = getattr(self, "_body_frame", None)
         if body:
             all_rows.append(body)
@@ -1370,14 +1384,16 @@ class SparingGUI:
                 except Exception:
                     pass
 
+        noise_on = self.cfg.get("sensor_noise_enabled", True)
+        temp_on  = self.cfg.get("sensor_temp_enabled",  True)
+
         if any_main:
             self._main_sensor_row.pack(fill="x", padx=px, pady=sp_main)
         if self._dust_row_frame and self.cfg.get("sensor_dust_enabled", True):
             self._dust_row_frame.pack(fill="x", padx=px, pady=sp_sub)
-        if self._noise_row_frame and self.cfg.get("sensor_noise_enabled", True):
+        if self._noise_row_frame and (noise_on or temp_on):
             self._noise_row_frame.pack(fill="x", padx=px, pady=sp_sub)
-        if self._temp_row_frame and self.cfg.get("sensor_temp_enabled", True):
-            self._temp_row_frame.pack(fill="x", padx=px, pady=sp_sub)
+            self._update_noise_temp_layout(noise_on, temp_on)
         if body:
             body.pack(fill="both", expand=True, padx=px, pady=self._sp(6))
 
@@ -1572,10 +1588,11 @@ class SparingGUI:
             self._main_sensor_row.pack(fill="x", padx=px, pady=(self._sp(6), 0))
         if self._dust_row_frame and self.cfg.get("sensor_dust_enabled", True):
             self._dust_row_frame.pack(fill="x", padx=px, pady=(self._sp(4), 0))
-        if self._noise_row_frame and self.cfg.get("sensor_noise_enabled", True):
+        noise_on = self.cfg.get("sensor_noise_enabled", True)
+        temp_on  = self.cfg.get("sensor_temp_enabled",  True)
+        if self._noise_row_frame and (noise_on or temp_on):
             self._noise_row_frame.pack(fill="x", padx=px, pady=(self._sp(3), 0))
-        if self._temp_row_frame and self.cfg.get("sensor_temp_enabled", True):
-            self._temp_row_frame.pack(fill="x", padx=px, pady=(self._sp(3), 0))
+            self._update_noise_temp_layout(noise_on, temp_on)
         if hasattr(self, "_body_frame"):
             self._body_frame.pack(fill="both", expand=True,
                                   padx=px, pady=self._sp(6))
@@ -1652,7 +1669,7 @@ class SparingGUI:
 
         # Sembunyikan sensor rows dan body
         for fr in [self._main_sensor_row, self._dust_row_frame,
-                   self._noise_row_frame, self._temp_row_frame]:
+                   self._noise_row_frame]:
             if fr:
                 try: fr.pack_forget()
                 except Exception: pass
