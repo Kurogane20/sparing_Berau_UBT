@@ -659,12 +659,16 @@ class SparingGUI:
         sg.pack(fill="both", expand=True, padx=pad, pady=(pad, px))
 
         cfg = self.cfg
+        dust_on  = cfg.get("sensor_dust_enabled",  True)
+        noise_on_cfg = cfg.get("sensor_noise_enabled", True)
+        temp_on_cfg  = cfg.get("sensor_temp_enabled",  True)
+
         sg.columnconfigure(0, weight=1)
         sg.columnconfigure(1, weight=1)
         sg.columnconfigure(2, weight=1)
         sg.rowconfigure(0, weight=4)
-        sg.rowconfigure(1, weight=3)
-        sg.rowconfigure(2, weight=2)
+        sg.rowconfigure(1, weight=3 if dust_on else 0)
+        sg.rowconfigure(2, weight=2 if (noise_on_cfg or temp_on_cfg) else 0)
 
         f_main_lbl  = self._fs(11 if self._small else 14)
         f_main_val  = self._fs(38 if self._small else 50)
@@ -720,8 +724,8 @@ class SparingGUI:
                 card.grid_remove()
 
         # Baris 2 — noise + suhu
-        noise_on = cfg.get("sensor_noise_enabled", True)
-        temp_on  = cfg.get("sensor_temp_enabled",  True)
+        noise_on = noise_on_cfg
+        temp_on  = temp_on_cfg
 
         if noise_on:
             nc = 2 if temp_on else 3
@@ -751,9 +755,10 @@ class SparingGUI:
                      font=(_FONT_UI, f_sub_unit)).pack()
 
         if temp_on:
+            # Jika noise aktif: temp di col 2 (1/3 kanan)
+            # Jika noise nonaktif: temp di col 1 (tengah, 1/3 lebar) — tidak full-width
             _value_card("temp", "SUHU AIR", "°C", "#BF360C", "#FFAB91",
-                        row=2, col=(2 if noise_on else 0),
-                        colspan=(1 if noise_on else 3),
+                        row=2, col=(2 if noise_on else 1), colspan=1,
                         f_lbl=f_sub_lbl, f_val=f_sub_val, f_unit=f_sub_unit)
 
     def _build_locked_status_panel(self, parent: tk.Frame) -> None:
