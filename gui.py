@@ -2251,31 +2251,32 @@ class SparingGUI:
         klhk_var = tk.BooleanVar(value=self.cfg.get("logger_klhk",    False))
         entry_vars["logger_internal"] = int_var
         entry_vars["logger_klhk"]     = klhk_var
-        lt_row = tk.Frame(form, bg=C["bg"])
-        lt_row.grid(row=row_i[0], column=0, columnspan=3,
-                    sticky="w", pady=(self._sp(4), self._sp(8)))
-        tk.Label(lt_row, text="Tipe Logger :",
+        lt_outer = tk.Frame(form, bg=C["bg"])
+        lt_outer.grid(row=row_i[0], column=0, columnspan=3,
+                      sticky="w", pady=(self._sp(4), self._sp(8)))
+        tk.Label(lt_outer, text="Tipe Logger :",
                  bg=C["bg"], fg=C["text"],
-                 font=(_FONT_UI, self._fs(10))).pack(side="left",
-                                                      padx=(0, self._sp(12)))
+                 font=(_FONT_UI, self._fs(10))).pack(anchor="w")
+        cb_frame = tk.Frame(lt_outer, bg=C["bg"])
+        cb_frame.pack(anchor="w", padx=(self._sp(16), 0))
         tk.Checkbutton(
-            lt_row,
+            cb_frame,
             text="Internal  (data raw sensor)",
             variable=int_var,
             bg=C["bg"], fg=C["text"],
             activebackground=C["bg"],
             selectcolor=C["primary"],
             font=(_FONT_UI, self._fs(9)),
-        ).pack(side="left", padx=(0, self._sp(16)))
+        ).pack(anchor="w")
         tk.Checkbutton(
-            lt_row,
+            cb_frame,
             text="KLHK  (data processed / batas KLHK)",
             variable=klhk_var,
             bg=C["bg"], fg=C["text"],
             activebackground=C["bg"],
             selectcolor=C["primary"],
             font=(_FONT_UI, self._fs(9)),
-        ).pack(side="left")
+        ).pack(anchor="w")
         row_i[0] += 1
 
         for label, key in [
