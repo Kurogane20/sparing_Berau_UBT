@@ -220,12 +220,13 @@ class NetworkManager:
             ph_v, tss_v, debit_v = r.ph, r.tss, r.debit
             uid = cfg["uid1"]
 
+        tl = cfg.get("tl_klhk", 2) if processed else cfg.get("tl_water", 1)
         payload: dict = {
             "uid":      uid,
             "cod":      0,
             "nh3n":     0,
             "datetime": int(r.timestamp),
-            "tl":       cfg.get("tl_water", 1),
+            "tl":       tl,
         }
         if ph_on:    payload["pH"]    = round(ph_v,    2)
         if tss_on:   payload["tss"]   = round(tss_v,   2)
@@ -264,9 +265,10 @@ class NetworkManager:
             pm25_v, pm10_v, tsp_v, noise_v = pm25, pm10, tsp, noise
             uid = cfg["uid1"]
 
+        tl = cfg.get("tl_klhk", 2) if processed else cfg.get("tl_water", 1)
         payload: dict = {
             "uid":      uid,
-            "tl":       cfg.get("tl_water", 1),
+            "tl":       tl,
             "datetime": int(timestamp),
         }
         if dust_on:

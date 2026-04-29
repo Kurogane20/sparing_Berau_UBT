@@ -2276,7 +2276,9 @@ class SparingGUI:
 
         for label, key in [
             ("UID 1  (Internal) :", "uid1"),
+            ("TL   (Internal) :",   "tl_water"),
             ("UID 1  (KLHK) :",     "uid1_klhk"),
+            ("TL   (KLHK) :",       "tl_klhk"),
             ("Server URL 1 :",      "server_url1"),
             ("Secret Key URL 1 :",  "secret_key_url1"),
         ]:
@@ -2492,7 +2494,8 @@ class SparingGUI:
         def _save():
             int_keys   = {"baud_rate", "slave_id_ph",
                           "slave_id_tss", "slave_id_debit",
-                          "slave_id_dust", "slave_id_noise", "slave_id_temp"}
+                          "slave_id_dust", "slave_id_noise", "slave_id_temp",
+                          "tl_water", "tl_klhk"}
             float_keys = {
                 "pm25_factor_min", "pm25_factor_max",
                 "pm10_factor_min", "pm10_factor_max",
