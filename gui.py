@@ -1519,12 +1519,7 @@ class SparingGUI:
                      width=self._sp(10), height=self._sp(10)).pack(
                 side="left", padx=(0, self._sp(10)))
 
-            tk.Label(row, text=label,
-                     bg=C["panel"], fg=C["text"],
-                     font=(_FONT_UI, self._fs(10))).pack(side="left", expand=True,
-                                                          anchor="w")
-
-            # Custom toggle label — consistent across RPi / OPi / Windows
+            # Toggle dipak side="right" SEBELUM label teks agar selalu dapat tempat
             _lbl = tk.Label(
                 row,
                 text="✓" if var.get() else "",
@@ -1545,6 +1540,11 @@ class SparingGUI:
                     _l.config(text="✓" if _v.get() else "", bg=col)
                 _l.bind("<Button-1>", _tog)
             _bind_toggle()
+
+            tk.Label(row, text=label,
+                     bg=C["panel"], fg=C["text"],
+                     font=(_FONT_UI, self._fs(10))).pack(side="left", expand=True,
+                                                          anchor="w")
 
             tk.Frame(win, bg=C["border"], height=1).pack(
                 fill="x", padx=self._sp(16))
