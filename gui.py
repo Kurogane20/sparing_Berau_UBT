@@ -1524,15 +1524,29 @@ class SparingGUI:
                      font=(_FONT_UI, self._fs(10))).pack(side="left", expand=True,
                                                           anchor="w")
 
-            tk.Checkbutton(
-                row, variable=var,
-                bg=C["panel"],
-                activebackground=C["panel"],
-                selectcolor=C["primary"],
-                fg=C["text_muted"],
-                font=(_FONT_UI, self._fs(9)),
-                relief="flat", cursor="hand2",
-            ).pack(side="right")
+            # Custom toggle — consistent across RPi / OPi / Windows
+            _sz = max(self._sp(22), 22)
+            _box = tk.Frame(row, width=_sz, height=_sz,
+                            bg=C["primary"] if var.get() else C["border"],
+                            cursor="hand2")
+            _box.pack_propagate(False)
+            _box.pack(side="right")
+            _mark = tk.Label(_box,
+                             text="✓" if var.get() else "",
+                             bg=C["primary"] if var.get() else C["border"],
+                             fg="white",
+                             font=(_FONT_UI, self._fs(9), "bold"))
+            _mark.pack(expand=True, fill="both")
+
+            def _bind_toggle(_v=var, _b=_box, _m=_mark):
+                def _tog(e=None):
+                    _v.set(not _v.get())
+                    col = C["primary"] if _v.get() else C["border"]
+                    _b.config(bg=col)
+                    _m.config(text="✓" if _v.get() else "", bg=col)
+                _b.bind("<Button-1>", _tog)
+                _m.bind("<Button-1>", _tog)
+            _bind_toggle()
 
             tk.Frame(win, bg=C["border"], height=1).pack(
                 fill="x", padx=self._sp(16))
