@@ -79,12 +79,12 @@ def detect_and_fill(interval: int = 120) -> List[SensorReading]:
         return []
 
     gap_sec = now - last_ts
-    if gap_sec <= interval * 1.5:
-        return []   # tidak ada gap signifikan
+    if gap_sec <= interval * 1.1:
+        return []   # tidak ada gap signifikan (toleransi 10%)
 
     slots: List[SensorReading] = []
     slot_ts = last_ts + interval
-    while slot_ts < now - interval:
+    while slot_ts <= now - interval:
         slots.append(SensorReading(
             timestamp = slot_ts,
             ph        = _vary(state.get("ph",    7.5)),
@@ -115,7 +115,7 @@ def gap_duration_str(interval: int = 120) -> str:
     if last_ts <= 0:
         return "Tidak ada data"
     gap_sec = time.time() - last_ts
-    if gap_sec <= interval * 1.5:
+    if gap_sec <= interval * 1.1:
         return "Tidak ada gap"
     gap_min = gap_sec / 60
     slots   = int(gap_sec // interval) - 1
