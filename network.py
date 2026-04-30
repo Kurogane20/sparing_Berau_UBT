@@ -6,6 +6,7 @@ network.py — Manajemen koneksi internet, pengambilan secret key, pembuatan JWT
 import json
 import logging
 import random
+import socket
 from datetime import datetime
 from typing import List, Optional
 
@@ -34,11 +35,12 @@ class NetworkManager:
 
     # ── Internet check ────────────────────────────────────────────────────────
     def check_internet(self) -> bool:
-        if not HAS_REQUESTS or req_lib is None:
-            return False
+        """Cek koneksi ke internet via socket TCP — tidak butuh DNS."""
         try:
-            r = req_lib.get("http://www.google.com", timeout=5)
-            return r.status_code == 200
+            socket.setdefaulttimeout(5)
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(
+                ("8.8.8.8", 53))
+            return True
         except Exception:
             return False
 
