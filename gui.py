@@ -2296,9 +2296,10 @@ class SparingGUI:
             ("Slave ID pH  :",    "slave_id_ph"),
             ("Slave ID TSS :",    "slave_id_tss"),
             ("Slave ID Debit :",  "slave_id_debit"),
-            ("Slave ID Debu :",   "slave_id_dust"),
-            ("Slave ID Noise :",  "slave_id_noise"),
-            ("Slave ID Suhu :",   "slave_id_temp"),
+            ("Slave ID Debu :",    "slave_id_dust"),
+            ("Slave ID Noise :",   "slave_id_noise"),
+            ("Slave ID Suhu :",    "slave_id_temp"),
+            ("Slave ID Cuaca :",   "slave_id_weather"),
         ]:
             _entry(label, key, 8)
 
@@ -2587,6 +2588,7 @@ class SparingGUI:
             int_keys   = {"baud_rate", "slave_id_ph",
                           "slave_id_tss", "slave_id_debit",
                           "slave_id_dust", "slave_id_noise", "slave_id_temp",
+                          "slave_id_weather",
                           "tl_water", "tl_klhk"}
             float_keys = {
                 "pm25_factor_min", "pm25_factor_max",
