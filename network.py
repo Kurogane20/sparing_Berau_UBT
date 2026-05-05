@@ -297,6 +297,36 @@ class NetworkManager:
             log.error(f"JWT s1_env encode error: {e}")
             return ""
 
+    def create_jwt_s1_weather(self, r: SensorReading,
+                              processed: bool = False) -> str:
+        """
+        JWT Server 1 — data cuaca YGC-CSM (angin, suhu udara, RH, tekanan).
+        Dikirim per 2 menit bersama data air.
+        Kembalikan "" jika sensor cuaca tidak aktif.
+        """
+        if not self.cfg.get("sensor_weather_enabled", True):
+            return ""
+        if not self.secret_key1 or not HAS_JWT or pyjwt is None:
+            return ""
+        cfg = self.cfg
+        uid = (cfg.get("uid1_klhk") or cfg["uid1"]) if processed else cfg["uid1"]
+        tl  = cfg.get("tl_klhk", 2) if processed else cfg.get("tl_water", 1)
+        payload = {
+            "uid":        uid,
+            "tl":         tl,
+            "datetime":   int(r.timestamp),
+            "wind_speed": round(r.wind_speed, 2),
+            "wind_dir":   int(r.wind_dir),
+            "air_temp":   round(r.air_temp,   1),
+            "humidity":   round(r.humidity,   1),
+            "pressure":   round(r.pressure,   1),
+        }
+        try:
+            return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
+        except Exception as e:
+            log.error(f"JWT s1_weather encode error: {e}")
+            return ""
+
     # Alias lama agar tidak ada error jika masih dipanggil
     def get_processed(self, r: SensorReading) -> tuple:
         """Kembalikan (ph, tss, debit, pm25, pm10, pm100, noise) setelah filter — untuk GUI."""

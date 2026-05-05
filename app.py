@@ -173,6 +173,8 @@ class SparingApp:
 
                 # Server 1: kualitas air (pH, TSS, Debit) — per 2 menit
                 self._send_s1_water(r)
+                # Server 1: data cuaca YGC-CSM — per 2 menit
+                self._send_s1_weather(r)
 
                 # Server 2: kirim saat batch penuh (jika diaktifkan)
                 if n >= batch_size:
@@ -337,6 +339,51 @@ class SparingApp:
         if ok_any:
             self.last_tx = r.timestamp
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
+        self.root.after(0, self.gui.update_buffer,
+                        self.storage_s1.count() + self.storage_s2.count())
+
+    # ── Kirim ke Server 1 — cuaca YGC-CSM, per 2 menit ──────────────────────
+    def _send_s1_weather(self, r: SensorReading) -> None:
+        """
+        Kirim data cuaca YGC-CSM (angin, suhu udara, RH, tekanan) ke Server 1
+        setiap 2 menit, bersamaan dengan data air.
+        """
+        if not self.cfg.get("sensor_weather_enabled", True):
+            return
+        int_on  = self.cfg.get("logger_internal", True)
+        klhk_on = self.cfg.get("logger_klhk",     False)
+        jwts = []
+        if int_on:
+            j = self.net.create_jwt_s1_weather(r, processed=False)
+            if j: jwts.append(("Internal", j))
+        if klhk_on:
+            j = self.net.create_jwt_s1_weather(r, processed=True)
+            if j: jwts.append(("KLHK", j))
+        if not jwts:
+            return
+
+        online = self.net.check_internet()
+        ok_any = False
+        for tag, jwt in jwts:
+            if not online:
+                self.storage_s1.save(jwt_s1=jwt)
+                continue
+            ok = self.net.post(self.cfg["server_url1"],
+                               json.dumps({"token": jwt}))
+            self.root.after(0, self.gui.update_connection, "server1", ok)
+            if ok:
+                ok_any = True
+                self._log(
+                    f"✓ [S1-Cuaca/{tag}] "
+                    f"Angin={r.wind_speed}m/s {int(r.wind_dir)}°  "
+                    f"SuhuU={r.air_temp}°C  RH={r.humidity}%  "
+                    f"P={r.pressure}hPa"
+                )
+            else:
+                self._log(f"✗ [S1-Cuaca/{tag}] Gagal — disimpan ke buffer")
+                self.storage_s1.save(jwt_s1=jwt)
+        if ok_any:
+            self.root.after(0, self.gui.update_last_tx, r.timestamp)
         self.root.after(0, self.gui.update_buffer,
                         self.storage_s1.count() + self.storage_s2.count())
 

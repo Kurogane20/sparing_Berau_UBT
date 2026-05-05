@@ -424,6 +424,10 @@ class SensorReader:
                 reading.pm25, reading.pm10, reading.pm100 = self._read_dust()
             if self.cfg.get("sensor_temp_enabled", True):
                 reading.temp  = self._read_temp()
+            if self.cfg.get("sensor_weather_enabled", True):
+                (reading.wind_speed, reading.wind_dir,
+                 reading.air_temp, reading.humidity,
+                 reading.pressure) = self._read_weather()
             # noise tidak dibaca di sini — dihandle oleh _noise_loop di app.py
         return reading
 
