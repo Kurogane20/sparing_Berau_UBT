@@ -243,20 +243,24 @@ class NetworkManager:
     def create_jwt_s1_env(self, pm25: float, pm10: float, tsp: float,
                           noise: float, timestamp: float,
                           link_video_id: str = "",
-                          processed: bool = False) -> str:
+                          processed: bool = False,
+                          wind_speed: float = 0.0, wind_dir: float = 0.0,
+                          air_temp: float = 0.0, humidity: float = 0.0,
+                          pressure: float = 0.0) -> str:
         """
-        JWT Server 1 — kualitas udara (PM + noise), per 1 menit.
+        JWT Server 1 — kualitas udara (PM + noise + cuaca YGC-CSM), per 1 menit.
         processed=False → data raw (Internal).
         processed=True  → data setelah apply_limits (KLHK).
         Kembalikan "" jika tidak ada sensor udara yang aktif.
         """
         if not self.secret_key1 or not HAS_JWT or pyjwt is None:
             return ""
-        cfg      = self.cfg
-        dust_on  = cfg.get("sensor_dust_enabled",  True)
-        noise_on = cfg.get("sensor_noise_enabled", True)
+        cfg        = self.cfg
+        dust_on    = cfg.get("sensor_dust_enabled",    True)
+        noise_on   = cfg.get("sensor_noise_enabled",   True)
+        weather_on = cfg.get("sensor_weather_enabled", True)
 
-        if not (dust_on or noise_on):
+        if not (dust_on or noise_on or weather_on):
             return ""
 
         if processed:
@@ -279,6 +283,12 @@ class NetworkManager:
             payload["tsp"]   = round(tsp_v,  1)
         if noise_on:
             payload["noise"] = round(noise_v, 1)
+        if weather_on:
+            payload["wind_speed"] = round(wind_speed, 2)
+            payload["wind_dir"]   = int(wind_dir)
+            payload["air_temp"]   = round(air_temp,   1)
+            payload["humidity"]   = round(humidity,   1)
+            payload["pressure"]   = round(pressure,   1)
         if link_video_id:
             payload["link_video_id"] = link_video_id
         try:

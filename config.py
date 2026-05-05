@@ -36,6 +36,7 @@ DEFAULT_CONFIG: dict = {
     "slave_id_dust":          3,     # RK300-02 dust sensor
     "slave_id_noise":         4,     # Sound level meter — address 0, reg[0]/10 = dB
     "slave_id_temp":          5,     # Sensor suhu air
+    "slave_id_weather":       6,     # YGC-CSM MINI Ultrasonic (angin/suhu udara/RH/tekanan)
 
     # Server 1 — Mitra Mutiara
     # uid1          : UID untuk data MURNI (tanpa batas min/max)
@@ -73,12 +74,17 @@ DEFAULT_CONFIG: dict = {
     "sensor_dust_enabled":    True,   # PM2.5, PM10, PM100 (RK300-02)
     "sensor_noise_enabled":   True,   # Kebisingan dB (Sound Level Meter)
     "sensor_temp_enabled":    True,   # Suhu air (°C)
+    "sensor_weather_enabled": True,   # YGC-CSM: angin, suhu udara, RH, tekanan
     "offset_ph":              0.0,
     "offset_tss":             0.0,
     "offset_debit":           0.0,
     "offset_pm100":           0.0,
     "offset_noise":           0.0,
     "offset_temp":            0.0,
+    "offset_wind_speed":      0.0,
+    "offset_air_temp":        0.0,
+    "offset_humidity":        0.0,
+    "offset_pressure":        0.0,
 
     # Faktor perhitungan PM2.5 dan PM10 dari TSP (PM100)
     # PM2.5 = random(pm25_factor_min, pm25_factor_max) × TSP
@@ -104,6 +110,16 @@ DEFAULT_CONFIG: dict = {
     "sim_noise_max":          80.0,
     "sim_temp_min":           25.0,
     "sim_temp_max":           30.0,
+    "sim_wind_speed_min":     0.0,
+    "sim_wind_speed_max":     5.0,
+    "sim_wind_dir_min":       0,
+    "sim_wind_dir_max":       359,
+    "sim_air_temp_min":       25.0,
+    "sim_air_temp_max":       35.0,
+    "sim_humidity_min":       60.0,
+    "sim_humidity_max":       90.0,
+    "sim_pressure_min":       1000.0,
+    "sim_pressure_max":       1015.0,
 
     # PIN untuk membuka tampilan data processed & batas Server 2
     "secret_pin":             "1234",

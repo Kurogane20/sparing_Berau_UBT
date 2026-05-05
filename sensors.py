@@ -315,6 +315,74 @@ class SensorReader:
         with self._lock:
             return self._read_dust()
 
+    # ── YGC-CSM MINI Ultrasonic Environmental Monitoring ─────────────────────
+    @staticmethod
+    def _to_signed16(val: int) -> int:
+        return val - 0x10000 if val >= 0x8000 else val
+
+    def _read_weather(self) -> tuple:
+        """
+        YGC-CSM: baca 13 register mulai 0x0000 sesuai datasheet.
+        Returns (wind_speed, wind_dir, air_temp, humidity, pressure).
+        Register layout (index dari reg[0]):
+          [0]  0x0000 — suhu udara   (signed, ÷10 = °C)
+          [1]  0x0001 — kelembaban   (signed, ÷10 = %RH)
+          [6]  0x0006 — tekanan      (signed, ÷10 = hPa)
+          [11] 0x000B — kec. angin   (unsigned, ÷100 = m/s)
+          [12] 0x000C — arah angin   (signed, 1° resolusi)
+        0x7FFF = tidak terhubung/invalid → kembalikan 0.0.
+        """
+        if self._mb is None:
+            c = self.cfg
+            return (
+                round(random.uniform(c.get("sim_wind_speed_min", 0.0),
+                                     c.get("sim_wind_speed_max", 5.0)), 2),
+                round(random.uniform(c.get("sim_wind_dir_min", 0),
+                                     c.get("sim_wind_dir_max", 359))),
+                round(random.uniform(c.get("sim_air_temp_min", 25.0),
+                                     c.get("sim_air_temp_max", 35.0)), 1),
+                round(random.uniform(c.get("sim_humidity_min", 60.0),
+                                     c.get("sim_humidity_max", 90.0)), 1),
+                round(random.uniform(c.get("sim_pressure_min", 1000.0),
+                                     c.get("sim_pressure_max", 1015.0)), 1),
+            )
+        try:
+            r = self._rhr(0x0000, 13, self.cfg["slave_id_weather"])
+            if r.isError():
+                msg = f"[SENSOR] Weather isError: {r}"
+                log.error(msg); self._on_error(msg)
+                return (0.0, 0, 0.0, 0.0, 0.0)
+
+            regs = r.registers
+
+            def _get(idx, scale, signed=True):
+                v = regs[idx]
+                if v == 0x7FFF:
+                    return None
+                return (self._to_signed16(v) if signed else v) * scale
+
+            ws  = _get(11, 0.01, signed=False)  # wind speed  (unsigned)
+            wd  = _get(12, 1.0)                  # wind dir    (signed)
+            at  = _get(0,  0.1)                  # air temp    (signed)
+            rh  = _get(1,  0.1)                  # humidity    (signed)
+            pr  = _get(6,  0.1)                  # pressure    (signed)
+
+            wind_speed = round((ws or 0.0) + self.cfg.get("offset_wind_speed", 0.0), 2)
+            wind_dir   = round(wd or 0.0)
+            air_temp   = round((at or 0.0) + self.cfg.get("offset_air_temp",   0.0), 1)
+            humidity   = round((rh or 0.0) + self.cfg.get("offset_humidity",   0.0), 1)
+            pressure   = round((pr or 0.0) + self.cfg.get("offset_pressure",   0.0), 1)
+            return (wind_speed, wind_dir, air_temp, humidity, pressure)
+        except Exception as e:
+            log.error(f"Baca Weather gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Weather gagal: {e}")
+            return (0.0, 0, 0.0, 0.0, 0.0)
+
+    def read_weather_safe(self) -> tuple:
+        """Baca cuaca (wind_speed, wind_dir, air_temp, humidity, pressure) dengan lock."""
+        with self._lock:
+            return self._read_weather()
+
     # ── Suhu air ──────────────────────────────────────────────────────────────
     def _read_temp(self) -> float:
         """

@@ -145,6 +145,7 @@ class SparingGUI:
         self._build_sensor_row()
         self._build_dust_row()
         self._build_noise_row()
+        self._build_weather_row()
         self._build_body()
         # Mulai dalam mode terkunci — overlay dipasang setelah widget selesai render
         self.root.after(200, self._lock)
@@ -522,6 +523,63 @@ class SparingGUI:
                     padx=px6, pady=self._sp(2))
             cr.columnconfigure(0, weight=1)
             cr.columnconfigure(1, weight=0)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # WEATHER ROW  — YGC-CSM: kecepatan angin, arah angin, suhu udara, RH, tekanan
+    # ═══════════════════════════════════════════════════════════════════════════
+    def _build_weather_row(self) -> None:
+        wrap = tk.Frame(self._content_frame, bg=C["bg"])
+        wrap.pack(fill="x", padx=self._sp(14), pady=(self._sp(3), 0))
+        self._weather_row_frame = wrap
+        if not self.cfg.get("sensor_weather_enabled", True):
+            wrap.pack_forget()
+
+        tk.Label(wrap, text="CUACA  (YGC-CSM)",
+                 bg=C["bg"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(7), "bold")).pack(
+            anchor="w", pady=(0, self._sp(2 if self._small else 3)))
+
+        row = tk.Frame(wrap, bg=C["bg"])
+        row.pack(fill="x")
+
+        defs = [
+            ("wind_speed", "KECEPATAN ANGIN", "m/s",  "#0D47A1", "#90CAF9"),
+            ("wind_dir",   "ARAH ANGIN",      "°",    "#1565C0", "#64B5F6"),
+            ("air_temp",   "SUHU UDARA",      "°C",   "#E65100", "#FFCC80"),
+            ("humidity",   "KELEMBABAN",      "%RH",  "#00695C", "#80CBC4"),
+            ("pressure",   "TEKANAN",         "hPa",  "#37474F", "#B0BEC5"),
+        ]
+        for col, (key, label, unit, bg, lc) in enumerate(defs):
+            card = self._weather_card(row, key, label, unit, bg, lc)
+            card.grid(row=0, column=col, padx=self._sp(6), sticky="nsew")
+            row.columnconfigure(col, weight=1)
+        self._sensor_cards["sensor_weather_enabled"] = (wrap,)
+
+    def _weather_card(self, parent, key: str, label: str,
+                      unit: str, bg: str, label_color: str) -> tk.Canvas:
+        """Kartu kompak untuk sensor cuaca (tanpa processed)."""
+        canvas, inner = self._rounded_canvas(parent, bg, radius=self._sp(14))
+
+        py_top = self._sp(3 if self._small else 4)
+        py_bot = self._sp(3 if self._small else 4)
+        f_title = self._fs(8  if self._small else 9)
+        f_val   = self._fs(18 if self._small else 22)
+
+        tk.Label(inner, text=label,
+                 bg=bg, fg=label_color,
+                 font=(_FONT_UI, f_title, "bold")).pack(pady=(py_top, 0))
+
+        raw_var = tk.StringVar(value="0.0")
+        self._sensor_vars[key] = raw_var
+        tk.Label(inner, textvariable=raw_var,
+                 bg=bg, fg="white",
+                 font=(_FONT_MONO, f_val, "bold")).pack(pady=(self._sp(1), 0))
+
+        tk.Label(inner, text=unit,
+                 bg=bg, fg=label_color,
+                 font=(_FONT_UI, self._fs(8))).pack(pady=(0, py_bot))
+
+        return canvas
 
     def _dust_card(self, parent, key: str, label: str,
                    unit: str, bg: str, label_color: str) -> tk.Canvas:
@@ -1400,7 +1458,8 @@ class SparingGUI:
         sp_sub   = (self._sp(3 if self._small else 4), 0)
 
         all_rows = [self._main_sensor_row, self._dust_row_frame,
-                    self._noise_row_frame]
+                    self._noise_row_frame,
+                    getattr(self, "_weather_row_frame", None)]
         body = getattr(self, "_body_frame", None)
         if body:
             all_rows.append(body)
@@ -1422,6 +1481,9 @@ class SparingGUI:
         if self._noise_row_frame and (noise_on or temp_on):
             self._noise_row_frame.pack(fill="x", padx=px, pady=sp_sub)
             self._update_noise_temp_layout(noise_on, temp_on)
+        weather_frame = getattr(self, "_weather_row_frame", None)
+        if weather_frame and self.cfg.get("sensor_weather_enabled", True):
+            weather_frame.pack(fill="x", padx=px, pady=sp_sub)
         if body:
             body.pack(fill="both", expand=True, padx=px, pady=self._sp(6))
 
@@ -1457,6 +1519,9 @@ class SparingGUI:
              "#4A148C", "#CE93D8"),
             ("sensor_temp_enabled",  "Suhu Air (°C)",
              "#BF360C", "#FFAB91"),
+            ("sensor_weather_enabled",
+             "Cuaca — Angin / Suhu Udara / Kelembaban / Tekanan (YGC-CSM)",
+             "#01579B", "#81D4FA"),
         ]
 
         check_vars = {}
@@ -1873,6 +1938,21 @@ class SparingGUI:
         if not self._unlocked:
             return
         self._proc_vars["noise"].set(f"{noise:.1f}")
+
+    def update_weather(self, wind_speed: float, wind_dir: float,
+                       air_temp: float, humidity: float,
+                       pressure: float) -> None:
+        """Perbarui nilai sensor cuaca YGC-CSM."""
+        if "wind_speed" in self._sensor_vars:
+            self._sensor_vars["wind_speed"].set(f"{wind_speed:.2f}")
+        if "wind_dir" in self._sensor_vars:
+            self._sensor_vars["wind_dir"].set(f"{int(wind_dir)}")
+        if "air_temp" in self._sensor_vars:
+            self._sensor_vars["air_temp"].set(f"{air_temp:.1f}")
+        if "humidity" in self._sensor_vars:
+            self._sensor_vars["humidity"].set(f"{humidity:.1f}")
+        if "pressure" in self._sensor_vars:
+            self._sensor_vars["pressure"].set(f"{pressure:.1f}")
 
     def update_count(self, n: int, total: int = 30) -> None:
         self._count_var.set(f"{n} / {total}")

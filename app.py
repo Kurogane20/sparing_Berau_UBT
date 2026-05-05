@@ -272,8 +272,30 @@ class SparingApp:
                 else:
                     pm25 = pm10 = tsp = 0.0
 
+                # Baca cuaca (YGC-CSM)
+                if self.cfg.get("sensor_weather_enabled", True):
+                    if self.sensor_rdr:
+                        ws, wd, at, rh, pr = self.sensor_rdr.read_weather_safe()
+                    else:
+                        c = self.cfg
+                        ws = round(random.uniform(c.get("sim_wind_speed_min", 0.0),
+                                                  c.get("sim_wind_speed_max", 5.0)), 2)
+                        wd = round(random.uniform(c.get("sim_wind_dir_min", 0),
+                                                  c.get("sim_wind_dir_max", 359)))
+                        at = round(random.uniform(c.get("sim_air_temp_min", 25.0),
+                                                  c.get("sim_air_temp_max", 35.0)), 1)
+                        rh = round(random.uniform(c.get("sim_humidity_min", 60.0),
+                                                  c.get("sim_humidity_max", 90.0)), 1)
+                        pr = round(random.uniform(c.get("sim_pressure_min", 1000.0),
+                                                  c.get("sim_pressure_max", 1015.0)), 1)
+                else:
+                    ws = wd = at = rh = pr = 0.0
+
+                self.root.after(0, self.gui.update_weather, ws, wd, at, rh, pr)
+
                 # Kirim ke Server 1 (per 1 menit)
-                self._send_s1_env(pm25, pm10, tsp, noise, now)
+                self._send_s1_env(pm25, pm10, tsp, noise, now,
+                                  ws, wd, at, rh, pr)
 
             except Exception as e:
                 self._log(f"[ERROR] noise loop: {e}")
@@ -320,7 +342,10 @@ class SparingApp:
 
     # ── Kirim ke Server 1 — per 1 menit (pm + noise + link_video_id) ──────────
     def _send_s1_env(self, pm25: float, pm10: float, tsp: float,
-                     noise: float, timestamp: float) -> None:
+                     noise: float, timestamp: float,
+                     wind_speed: float = 0.0, wind_dir: float = 0.0,
+                     air_temp: float = 0.0, humidity: float = 0.0,
+                     pressure: float = 0.0) -> None:
         """
         Kirim data lingkungan (debu + noise) ke Server 1 setiap 1 menit.
         Format: raw JSON langsung (uid, pm_25, pm_10, tsp, noise, temp,
@@ -332,14 +357,18 @@ class SparingApp:
         klhk_on = self.cfg.get("logger_klhk",     False)
         jwts = []
         if int_on:
-            j = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
-                                            timestamp, link_video_id,
-                                            processed=False)
+            j = self.net.create_jwt_s1_env(
+                pm25, pm10, tsp, noise, timestamp, link_video_id,
+                processed=False,
+                wind_speed=wind_speed, wind_dir=wind_dir,
+                air_temp=air_temp, humidity=humidity, pressure=pressure)
             if j: jwts.append(("Internal", j))
         if klhk_on:
-            j = self.net.create_jwt_s1_env(pm25, pm10, tsp, noise,
-                                            timestamp, link_video_id,
-                                            processed=True)
+            j = self.net.create_jwt_s1_env(
+                pm25, pm10, tsp, noise, timestamp, link_video_id,
+                processed=True,
+                wind_speed=wind_speed, wind_dir=wind_dir,
+                air_temp=air_temp, humidity=humidity, pressure=pressure)
             if j: jwts.append(("KLHK", j))
         if not jwts:
             return
@@ -447,20 +476,30 @@ class SparingApp:
         f25 = random.uniform(c.get("pm25_factor_min", 0.1), c.get("pm25_factor_max", 0.2))
         f10 = random.uniform(c.get("pm10_factor_min", 0.3), c.get("pm10_factor_max", 0.4))
         return SensorReading(
-            timestamp = time.time(),
-            ph        = round(random.uniform(c.get("sim_ph_min",    7.5),
-                                             c.get("sim_ph_max",    7.6)),  2),
-            tss       = round(random.uniform(c.get("sim_tss_min",   80.0),
-                                             c.get("sim_tss_max",   90.0)), 2),
-            debit     = round(random.uniform(c.get("sim_debit_min", 0.01),
-                                             c.get("sim_debit_max", 0.10)), 2),
-            temp      = round(random.uniform(c.get("sim_temp_min",  25.0),
-                                             c.get("sim_temp_max",  30.0)), 1),
-            pm100     = tsp,
-            pm25      = round(f25 * tsp, 1),
-            pm10      = round(f10 * tsp, 1),
-            noise     = round(random.uniform(c.get("sim_noise_min", 40.0),
-                                             c.get("sim_noise_max", 80.0)), 1),
+            timestamp  = time.time(),
+            ph         = round(random.uniform(c.get("sim_ph_min",         7.5),
+                                              c.get("sim_ph_max",         7.6)),   2),
+            tss        = round(random.uniform(c.get("sim_tss_min",        80.0),
+                                              c.get("sim_tss_max",        90.0)),  2),
+            debit      = round(random.uniform(c.get("sim_debit_min",      0.01),
+                                              c.get("sim_debit_max",      0.10)),  2),
+            temp       = round(random.uniform(c.get("sim_temp_min",       25.0),
+                                              c.get("sim_temp_max",       30.0)),  1),
+            pm100      = tsp,
+            pm25       = round(f25 * tsp, 1),
+            pm10       = round(f10 * tsp, 1),
+            noise      = round(random.uniform(c.get("sim_noise_min",      40.0),
+                                              c.get("sim_noise_max",      80.0)),  1),
+            wind_speed = round(random.uniform(c.get("sim_wind_speed_min", 0.0),
+                                              c.get("sim_wind_speed_max", 5.0)),   2),
+            wind_dir   = round(random.uniform(c.get("sim_wind_dir_min",   0),
+                                              c.get("sim_wind_dir_max",   359))),
+            air_temp   = round(random.uniform(c.get("sim_air_temp_min",   25.0),
+                                              c.get("sim_air_temp_max",   35.0)),  1),
+            humidity   = round(random.uniform(c.get("sim_humidity_min",   60.0),
+                                              c.get("sim_humidity_max",   90.0)),  1),
+            pressure   = round(random.uniform(c.get("sim_pressure_min",   1000.0),
+                                              c.get("sim_pressure_max",   1015.0)), 1),
         )
 
     def toggle_test_mode(self) -> None:

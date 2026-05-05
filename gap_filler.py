@@ -28,15 +28,20 @@ def save_state(r: SensorReading) -> None:
     try:
         with open(_STATE_FILE, "w", encoding="utf-8") as f:
             json.dump({
-                "last_ts": r.timestamp,
-                "ph":      r.ph,
-                "tss":     r.tss,
-                "debit":   r.debit,
-                "pm25":    r.pm25,
-                "pm10":    r.pm10,
-                "pm100":   r.pm100,
-                "noise":   r.noise,
-                "temp":    r.temp,
+                "last_ts":    r.timestamp,
+                "ph":         r.ph,
+                "tss":        r.tss,
+                "debit":      r.debit,
+                "pm25":       r.pm25,
+                "pm10":       r.pm10,
+                "pm100":      r.pm100,
+                "noise":      r.noise,
+                "temp":       r.temp,
+                "wind_speed": r.wind_speed,
+                "wind_dir":   r.wind_dir,
+                "air_temp":   r.air_temp,
+                "humidity":   r.humidity,
+                "pressure":   r.pressure,
             }, f)
     except Exception as e:
         log.error(f"gap_filler save_state: {e}")
@@ -86,15 +91,20 @@ def detect_and_fill(interval: int = 120) -> List[SensorReading]:
     slot_ts = last_ts + interval
     while slot_ts <= now - interval:
         slots.append(SensorReading(
-            timestamp = slot_ts,
-            ph        = _vary(state.get("ph",    7.5)),
-            tss       = _vary(state.get("tss",   80.0)),
-            debit     = _vary(state.get("debit", 0.05)),
-            pm25      = _vary(state.get("pm25",  10.0)),
-            pm10      = _vary(state.get("pm10",  20.0)),
-            pm100     = _vary(state.get("pm100", 50.0)),
-            noise     = _vary(state.get("noise", 55.0)),
-            temp      = _vary(state.get("temp",  27.0)),
+            timestamp  = slot_ts,
+            ph         = _vary(state.get("ph",         7.5)),
+            tss        = _vary(state.get("tss",        80.0)),
+            debit      = _vary(state.get("debit",      0.05)),
+            pm25       = _vary(state.get("pm25",       10.0)),
+            pm10       = _vary(state.get("pm10",       20.0)),
+            pm100      = _vary(state.get("pm100",      50.0)),
+            noise      = _vary(state.get("noise",      55.0)),
+            temp       = _vary(state.get("temp",       27.0)),
+            wind_speed = _vary(state.get("wind_speed", 1.0)),
+            wind_dir   = round(_vary(state.get("wind_dir",   180.0))),
+            air_temp   = _vary(state.get("air_temp",   30.0)),
+            humidity   = _vary(state.get("humidity",   75.0)),
+            pressure   = _vary(state.get("pressure",   1008.0)),
         ))
         slot_ts += interval
 
