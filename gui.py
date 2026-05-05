@@ -543,21 +543,31 @@ class SparingGUI:
         row.pack(fill="x")
 
         defs = [
-            ("wind_speed", "KECEPATAN ANGIN", "m/s",  "#0D47A1", "#90CAF9"),
-            ("wind_dir",   "ARAH ANGIN",      "°",    "#1565C0", "#64B5F6"),
-            ("air_temp",   "SUHU UDARA",      "°C",   "#E65100", "#FFCC80"),
-            ("humidity",   "KELEMBABAN",      "%RH",  "#00695C", "#80CBC4"),
-            ("pressure",   "TEKANAN",         "hPa",  "#37474F", "#B0BEC5"),
+            ("wind_speed", "KECEPATAN ANGIN", "m/s",  "#0D47A1", "#90CAF9", None),
+            ("wind_dir",   "ARAH ANGIN",      "°",    "#1565C0", "#64B5F6", "wind_dir_name"),
+            ("air_temp",   "SUHU UDARA",      "°C",   "#E65100", "#FFCC80", None),
+            ("humidity",   "KELEMBABAN",      "%RH",  "#00695C", "#80CBC4", None),
+            ("pressure",   "TEKANAN",         "hPa",  "#37474F", "#B0BEC5", None),
         ]
-        for col, (key, label, unit, bg, lc) in enumerate(defs):
-            card = self._weather_card(row, key, label, unit, bg, lc)
+        for col, (key, label, unit, bg, lc, dir_key) in enumerate(defs):
+            card = self._weather_card(row, key, label, unit, bg, lc, dir_key)
             card.grid(row=0, column=col, padx=self._sp(6), sticky="nsew")
             row.columnconfigure(col, weight=1)
         self._sensor_cards["sensor_weather_enabled"] = (wrap,)
 
+    @staticmethod
+    def _deg_to_compass(deg: float) -> str:
+        """Konversi derajat (0–359) ke nama arah mata angin (Bahasa Indonesia)."""
+        dirs = ["Utara", "Timur Laut", "Timur", "Tenggara",
+                "Selatan", "Barat Daya", "Barat", "Barat Laut"]
+        return dirs[round(deg / 45) % 8]
+
     def _weather_card(self, parent, key: str, label: str,
-                      unit: str, bg: str, label_color: str) -> tk.Canvas:
-        """Kartu kompak untuk sensor cuaca (tanpa processed)."""
+                      unit: str, bg: str, label_color: str,
+                      dir_label_key: str = None) -> tk.Canvas:
+        """Kartu kompak untuk sensor cuaca (tanpa processed).
+        dir_label_key: jika diisi, tambahkan label nama arah di bawah nilai.
+        """
         canvas, inner = self._rounded_canvas(parent, bg, radius=self._sp(14))
 
         py_top = self._sp(3 if self._small else 4)
@@ -569,7 +579,7 @@ class SparingGUI:
                  bg=bg, fg=label_color,
                  font=(_FONT_UI, f_title, "bold")).pack(pady=(py_top, 0))
 
-        raw_var = tk.StringVar(value="0.0")
+        raw_var = tk.StringVar(value="0")
         self._sensor_vars[key] = raw_var
         tk.Label(inner, textvariable=raw_var,
                  bg=bg, fg="white",
@@ -577,7 +587,16 @@ class SparingGUI:
 
         tk.Label(inner, text=unit,
                  bg=bg, fg=label_color,
-                 font=(_FONT_UI, self._fs(8))).pack(pady=(0, py_bot))
+                 font=(_FONT_UI, self._fs(8))).pack(
+            pady=(0, 0 if dir_label_key else py_bot))
+
+        if dir_label_key:
+            dir_var = tk.StringVar(value="—")
+            self._sensor_vars[dir_label_key] = dir_var
+            tk.Label(inner, textvariable=dir_var,
+                     bg=bg, fg="white",
+                     font=(_FONT_UI, self._fs(8 if self._small else 9),
+                           "bold")).pack(pady=(self._sp(1), py_bot))
 
         return canvas
 
@@ -1947,6 +1966,8 @@ class SparingGUI:
             self._sensor_vars["wind_speed"].set(f"{wind_speed:.2f}")
         if "wind_dir" in self._sensor_vars:
             self._sensor_vars["wind_dir"].set(f"{int(wind_dir)}")
+        if "wind_dir_name" in self._sensor_vars:
+            self._sensor_vars["wind_dir_name"].set(self._deg_to_compass(wind_dir))
         if "air_temp" in self._sensor_vars:
             self._sensor_vars["air_temp"].set(f"{air_temp:.1f}")
         if "humidity" in self._sensor_vars:
