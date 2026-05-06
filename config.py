@@ -186,12 +186,20 @@ DEFAULT_CONFIG: dict = {
 
 
 def load_config() -> dict:
-    """Baca config.json dan gabungkan dengan default."""
+    """Baca config.json dan gabungkan dengan default.
+    Jika ada key baru di DEFAULT_CONFIG yang belum ada di file,
+    simpan kembali agar config.json selalu lengkap.
+    """
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 saved = json.load(f)
-            return {**DEFAULT_CONFIG, **saved}
+            merged = {**DEFAULT_CONFIG, **saved}
+            new_keys = set(DEFAULT_CONFIG.keys()) - set(saved.keys())
+            if new_keys:
+                save_config(merged)
+                log.info(f"config.json diperbarui: {len(new_keys)} key baru ditambahkan")
+            return merged
         except Exception as e:
             log.error(f"Gagal membaca config.json: {e}")
     return DEFAULT_CONFIG.copy()
