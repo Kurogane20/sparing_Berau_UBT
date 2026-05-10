@@ -578,6 +578,13 @@ class SparingApp:
         auto=True  → dipanggil otomatis saat startup (tidak update tombol GUI)
         auto=False → dipanggil dari tombol GUI
         """
+        # Secret key harus ada sebelum JWT bisa dibuat.
+        # Saat dipanggil otomatis di startup, network loop belum sempat
+        # mengambil key — fetch langsung di sini jika belum tersedia.
+        if not self.net.keys_fetched:
+            self._log("[GAP] Mengambil secret key...")
+            self.net.fetch_all_keys()
+
         interval = self.cfg["interval_seconds"]
         slots    = gap_filler.detect_and_fill(interval)
 
