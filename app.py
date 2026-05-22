@@ -48,7 +48,8 @@ class SparingApp:
         self.storage_s2 = DataStorage("data_buffer_s2.json")
         self.batch: List[SensorReading] = []
         self.last_tx    = 0.0
-        self._running   = True
+        self._running    = True
+        self._gap_filled = False   # pastikan gap fill hanya jalan sekali
         self._q: queue.Queue = queue.Queue()
         self._noise_buf: List[float] = []         # buffer sampel noise 1 menit
         self._noise_buf_lock = threading.Lock()   # proteksi akses antar-thread
@@ -124,9 +125,6 @@ class SparingApp:
         batch_size = self.cfg["data_batch_size"]
         interval   = self.cfg["interval_seconds"]
         time.sleep(2)   # beri waktu GUI load
-
-        # Deteksi dan isi gap otomatis saat startup
-        self._fill_gaps(auto=True)
 
         while self._running:
             try:
@@ -207,6 +205,14 @@ class SparingApp:
                         self._log("Mengambil secret key dari server...")
                         self.net.fetch_all_keys()
                         self._log("Secret key berhasil diperoleh")
+                        # Gap fill dijalankan setelah key dipastikan tersedia
+                        if not self._gap_filled:
+                            self._gap_filled = True
+                            threading.Thread(
+                                target=self._fill_gaps,
+                                kwargs={"auto": True},
+                                daemon=True, name="gap_fill_auto",
+                            ).start()
 
                     # 3. Cek keterjangkauan kedua server secara independen
                     s1_ok = self.net.check_server(self.cfg["secret_key_url1"])
@@ -578,13 +584,6 @@ class SparingApp:
         auto=True  → dipanggil otomatis saat startup (tidak update tombol GUI)
         auto=False → dipanggil dari tombol GUI
         """
-        # Secret key harus ada sebelum JWT bisa dibuat.
-        # Saat dipanggil otomatis di startup, network loop belum sempat
-        # mengambil key — fetch langsung di sini jika belum tersedia.
-        if not self.net.keys_fetched:
-            self._log("[GAP] Mengambil secret key...")
-            self.net.fetch_all_keys()
-
         interval = self.cfg["interval_seconds"]
         slots    = gap_filler.detect_and_fill(interval)
 
