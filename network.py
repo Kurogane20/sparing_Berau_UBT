@@ -70,19 +70,32 @@ class NetworkManager:
             log.error(f"Fetch key gagal ({url}): {e}")
         return None
 
-    def fetch_all_keys(self) -> None:
-        """Ambil secret key untuk kedua server. Gunakan default jika gagal."""
+    def fetch_all_keys(self) -> bool:
+        """
+        Ambil secret key dari server.
+        Hanya update key & set keys_fetched=True jika KEDUA key berhasil diambil.
+        Kembalikan True jika berhasil, False jika salah satu gagal.
+        Tidak menggunakan key default — JWT kosong lebih aman dari JWT salah-tanda.
+        """
         k1 = self._fetch_key(self.cfg["secret_key_url1"])
-        self.secret_key1 = k1 if k1 else "sparing1"
-        if not k1:
-            log.warning("Secret key 1 default digunakan")
-
         k2 = self._fetch_key(self.cfg["secret_key_url2"])
-        self.secret_key2 = k2 if k2 else "sparing2"
-        if not k2:
-            log.warning("Secret key 2 default digunakan")
 
-        self.keys_fetched = True
+        if k1:
+            self.secret_key1 = k1
+            log.info(f"Secret key 1 OK ({len(k1)} chars)")
+        else:
+            log.warning("Secret key 1 gagal diambil dari server")
+
+        if k2:
+            self.secret_key2 = k2
+            log.info(f"Secret key 2 OK ({len(k2)} chars)")
+        else:
+            log.warning("Secret key 2 gagal diambil dari server")
+
+        if k1 and k2:
+            self.keys_fetched = True
+
+        return bool(k1 and k2)
 
     # ── JWT ───────────────────────────────────────────────────────────────────
     @staticmethod
@@ -336,10 +349,10 @@ class NetworkManager:
         return self.create_jwt1_raw(batch)
 
     # ── HTTP POST ─────────────────────────────────────────────────────────────
-    def post(self, url: str, body: str) -> bool:
+    def _do_post(self, url: str, body: str) -> int:
+        """Kirim POST, kembalikan HTTP status code atau -1 jika error jaringan."""
         if not HAS_REQUESTS or req_lib is None:
-            return False
-        # Tampilkan nama host saja agar log tidak terlalu panjang
+            return -1
         host = url.split("/")[2] if "/" in url else url
         try:
             r    = req_lib.post(
@@ -347,17 +360,23 @@ class NetworkManager:
                 headers={"Content-Type": "application/json"},
                 timeout=30,
             )
-            ok   = r.status_code in (200, 201)
             resp = r.text.strip()[:120] or "(no body)"
             msg  = f"[POST] {host} → HTTP {r.status_code}  {resp}"
             log.info(msg)
             self._on_log(msg)
-            return ok
+            return r.status_code
         except Exception as e:
             msg = f"[POST] {host} → ERROR: {e}"
             log.error(msg)
             self._on_log(msg)
-            return False
+            return -1
+
+    def post(self, url: str, body: str) -> bool:
+        return self._do_post(url, body) in (200, 201)
+
+    def post_status(self, url: str, body: str) -> int:
+        """Versi post() yang mengembalikan HTTP status code (untuk deteksi 401)."""
+        return self._do_post(url, body)
 
     # ── Log ke server ─────────────────────────────────────────────────────────
     def post_log(self, message: str, level: str = "INFO") -> bool:

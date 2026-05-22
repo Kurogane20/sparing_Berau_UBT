@@ -36,7 +36,7 @@ class DataStorage:
         """
         Kirim ulang semua entri Server 1 yang tersimpan.
         Setiap entri berisi jwt1_raw dan jwt1_proc.
-        Kembalikan jumlah entri yang berhasil dikirim.
+        Kembalikan jumlah entri yang berhasil dikirim atau dibuang.
         """
         entries = self._load()
         if not entries:
@@ -46,26 +46,29 @@ class DataStorage:
         for e in entries:
             raw  = e.get("jwt1_raw",  "")
             proc = e.get("jwt1_proc", "")
-            # Buang entri dengan token kosong — tidak perlu dikirim ulang
             if not raw:
-                sent += 1   # anggap selesai, hapus dari buffer
+                sent += 1   # buang entri kosong
                 continue
-            ok_r = net.post(url, json.dumps({"token": raw}))
-            ok_p = net.post(url, json.dumps({"token": proc})) if proc else True
-            if ok_r and ok_p:
+            st_r = net.post_status(url, json.dumps({"token": raw}))
+            st_p = (net.post_status(url, json.dumps({"token": proc}))
+                    if proc else 200)
+            if st_r in (200, 201) and st_p in (200, 201):
                 sent += 1
+            elif st_r == 401 or st_p == 401:
+                sent += 1   # buang — JWT tidak valid (key lama), tidak akan pernah berhasil
+                log.warning("[S1 buffer] Entri dibuang — JWT tidak valid (401)")
             else:
                 remaining.append(e)
         self._write(remaining)
         if sent:
-            log.info(f"[S1 buffer] {sent} entri berhasil dikirim ulang")
+            log.info(f"[S1 buffer] {sent} entri diproses")
         return sent
 
     def flush_s1_env(self, net) -> int:
         """
         Kirim ulang entri Server 1 format baru (raw JSON per 1 menit).
-        Setiap entri berisi body_s1 (raw JSON string).
-        Entri format lama (jwt_env / jwt1_raw) dibuang otomatis.
+        Setiap entri berisi jwt_s1.
+        Entri format lama (jwt_env / jwt1_raw) dan entri 401 dibuang otomatis.
         """
         entries = self._load()
         if not entries:
@@ -77,20 +80,24 @@ class DataStorage:
             if not jwt:
                 sent += 1   # buang entri format lama / kosong
                 continue
-            if net.post(url, json.dumps({"token": jwt})):
+            status = net.post_status(url, json.dumps({"token": jwt}))
+            if status in (200, 201):
                 sent += 1
+            elif status == 401:
+                sent += 1   # buang — JWT tidak valid (key lama), tidak akan pernah berhasil
+                log.warning("[S1 env buffer] Entri dibuang — JWT tidak valid (401)")
             else:
                 remaining.append(e)
         self._write(remaining)
         if sent:
-            log.info(f"[S1 env buffer] {sent} entri berhasil dikirim ulang")
+            log.info(f"[S1 env buffer] {sent} entri diproses")
         return sent
 
     def flush_s2(self, net) -> int:
         """
         Kirim ulang semua entri Server 2 yang tersimpan.
         Setiap entri berisi jwt2.
-        Kembalikan jumlah entri yang berhasil dikirim.
+        Kembalikan jumlah entri yang berhasil dikirim atau dibuang.
         """
         entries = self._load()
         if not entries:
@@ -102,13 +109,17 @@ class DataStorage:
             if not jwt2:
                 sent += 1   # buang entri dengan token kosong
                 continue
-            if net.post(url, json.dumps({"token": jwt2})):
+            status = net.post_status(url, json.dumps({"token": jwt2}))
+            if status in (200, 201):
                 sent += 1
+            elif status == 401:
+                sent += 1   # buang — JWT tidak valid (key lama), tidak akan pernah berhasil
+                log.warning("[S2 buffer] Entri dibuang — JWT tidak valid (401)")
             else:
                 remaining.append(e)
         self._write(remaining)
         if sent:
-            log.info(f"[S2 buffer] {sent} entri berhasil dikirim ulang")
+            log.info(f"[S2 buffer] {sent} entri diproses")
         return sent
 
     def count(self) -> int:

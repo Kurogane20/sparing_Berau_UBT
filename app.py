@@ -200,19 +200,22 @@ class SparingApp:
                 self.root.after(0, self.gui.update_connection, "internet", internet_ok)
 
                 if internet_ok:
-                    # 2. Ambil secret key (sekali saja saat pertama kali online)
+                    # 2. Ambil secret key — retry setiap 30 detik sampai berhasil
                     if not self.net.keys_fetched:
                         self._log("Mengambil secret key dari server...")
-                        self.net.fetch_all_keys()
-                        self._log("Secret key berhasil diperoleh")
-                        # Gap fill dijalankan setelah key dipastikan tersedia
-                        if not self._gap_filled:
-                            self._gap_filled = True
-                            threading.Thread(
-                                target=self._fill_gaps,
-                                kwargs={"auto": True},
-                                daemon=True, name="gap_fill_auto",
-                            ).start()
+                        ok_keys = self.net.fetch_all_keys()
+                        if ok_keys:
+                            self._log("Secret key berhasil diperoleh")
+                            # Gap fill hanya jalan setelah key NYATA tersedia
+                            if not self._gap_filled:
+                                self._gap_filled = True
+                                threading.Thread(
+                                    target=self._fill_gaps,
+                                    kwargs={"auto": True},
+                                    daemon=True, name="gap_fill_auto",
+                                ).start()
+                        else:
+                            self._log("[WARN] Secret key belum diperoleh — retry 30 detik")
 
                     # 3. Cek keterjangkauan kedua server secara independen
                     s1_ok = self.net.check_server(self.cfg["secret_key_url1"])
