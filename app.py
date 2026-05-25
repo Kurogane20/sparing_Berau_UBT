@@ -54,6 +54,8 @@ class SparingApp:
         self._noise_buf: List[float] = []         # buffer sampel noise 1 menit
         self._noise_buf_lock = threading.Lock()   # proteksi akses antar-thread
         self._sensor_wake = threading.Event()     # set() untuk mempersingkat sleep sensor loop
+        self._last_r: Optional[SensorReading] = None  # reading terakhir untuk sinkronisasi sim
+        self._last_r_lock = threading.Lock()
 
     def start(self) -> None:
         # Inisialisasi sensor reader (gagal graceful → simulasi aktif)
@@ -131,6 +133,8 @@ class SparingApp:
                 use_hw  = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
                 r       = self.sensor_rdr.read_all() if use_hw else self._simulate()
                 gap_filler.save_state(r)   # simpan pembacaan terakhir untuk gap fill
+                with self._last_r_lock:
+                    self._last_r = r
                 port_ok = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
 
                 self.root.after(0, self.gui.update_connection, "rs485", port_ok)
@@ -266,10 +270,17 @@ class SparingApp:
                 else:
                     noise = 0.0
 
+                # Ambil reading terakhir dari sensor_loop untuk sinkronisasi nilai simulasi
+                with self._last_r_lock:
+                    last = self._last_r
+
                 # Baca debu (PM)
                 if self.cfg.get("sensor_dust_enabled", True):
                     if self.sensor_rdr:
                         pm25, pm10, tsp = self.sensor_rdr.read_dust_safe()
+                    elif last is not None:
+                        # Pakai nilai dari _simulate() yang sama dengan yang ditampilkan di GUI
+                        pm25, pm10, tsp = last.pm25, last.pm10, last.pm100
                     else:
                         tsp  = round(random.uniform(
                                 self.cfg.get("sim_tsp_min", 30.0),
@@ -287,6 +298,10 @@ class SparingApp:
                 if self.cfg.get("sensor_weather_enabled", True):
                     if self.sensor_rdr:
                         ws, wd, at, rh, pr = self.sensor_rdr.read_weather_safe()
+                    elif last is not None:
+                        # Pakai nilai dari _simulate() yang sama dengan yang ditampilkan di GUI
+                        ws, wd, at, rh, pr = (last.wind_speed, last.wind_dir,
+                                              last.air_temp, last.humidity, last.pressure)
                     else:
                         c = self.cfg
                         ws = round(random.uniform(c.get("sim_wind_speed_min", 0.0),
