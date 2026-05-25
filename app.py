@@ -254,10 +254,14 @@ class SparingApp:
                 now    = time.time()
                 use_hw = bool(self.sensor_rdr and self.sensor_rdr._port_ok)
 
+                # Ambil reading terakhir dari sensor_loop untuk sinkronisasi nilai simulasi
+                with self._last_r_lock:
+                    last = self._last_r
+
                 # Baca noise
                 if self.cfg.get("sensor_noise_enabled", True):
                     noise = (self.sensor_rdr.read_noise_safe()
-                             if self.sensor_rdr
+                             if use_hw
                              else round(random.uniform(
                                  self.cfg.get("sim_noise_min", 40.0),
                                  self.cfg.get("sim_noise_max", 80.0)), 1))
@@ -270,13 +274,9 @@ class SparingApp:
                 else:
                     noise = 0.0
 
-                # Ambil reading terakhir dari sensor_loop untuk sinkronisasi nilai simulasi
-                with self._last_r_lock:
-                    last = self._last_r
-
                 # Baca debu (PM)
                 if self.cfg.get("sensor_dust_enabled", True):
-                    if self.sensor_rdr:
+                    if use_hw:
                         pm25, pm10, tsp = self.sensor_rdr.read_dust_safe()
                     elif last is not None:
                         # Pakai nilai dari _simulate() yang sama dengan yang ditampilkan di GUI
@@ -296,7 +296,7 @@ class SparingApp:
 
                 # Baca cuaca (YGC-CSM)
                 if self.cfg.get("sensor_weather_enabled", True):
-                    if self.sensor_rdr:
+                    if use_hw:
                         ws, wd, at, rh, pr = self.sensor_rdr.read_weather_safe()
                     elif last is not None:
                         # Pakai nilai dari _simulate() yang sama dengan yang ditampilkan di GUI
