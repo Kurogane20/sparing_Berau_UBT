@@ -335,19 +335,23 @@ class SparingApp:
         """
         int_on  = self.cfg.get("logger_internal", True)
         klhk_on = self.cfg.get("logger_klhk",     False)
+
+        # Hitung nilai processed sekali untuk log KLHK
+        proc_ph, proc_tss, proc_debit, *_ = self.net.get_processed(r)
+
         jwts = []
         if int_on:
             j = self.net.create_jwt1_water(r, processed=False)
-            if j: jwts.append(("Internal", j))
+            if j: jwts.append(("Internal", r.ph, r.tss, r.debit, j))
         if klhk_on:
             j = self.net.create_jwt1_water(r, processed=True)
-            if j: jwts.append(("KLHK", j))
+            if j: jwts.append(("KLHK", proc_ph, proc_tss, proc_debit, j))
         if not jwts:
             return
 
         online = self.net.check_internet()
         ok_any = False
-        for tag, jwt in jwts:
+        for tag, ph_v, tss_v, debit_v, jwt in jwts:
             if not online:
                 self.storage_s1.save(jwt_s1=jwt)
                 continue
@@ -356,7 +360,7 @@ class SparingApp:
             self.root.after(0, self.gui.update_connection, "server1", ok)
             if ok:
                 ok_any = True
-                self._log(f"✓ [S1-W/{tag}] pH={r.ph}  TSS={r.tss}  Debit={r.debit:.2f}")
+                self._log(f"✓ [S1-W/{tag}] pH={ph_v}  TSS={tss_v}  Debit={debit_v:.2f}")
             else:
                 self._log(f"✗ [S1-W/{tag}] Gagal — disimpan ke buffer")
                 self.storage_s1.save(jwt_s1=jwt)
@@ -426,6 +430,11 @@ class SparingApp:
         link_video_id = self.cfg.get("link_video_id", "")
         int_on  = self.cfg.get("logger_internal", True)
         klhk_on = self.cfg.get("logger_klhk",     False)
+
+        # Hitung nilai processed PM+noise untuk log KLHK
+        _, _, _, pm25_p, pm10_p, tsp_p, noise_p = self.net._apply_limits(
+            0, 0, 0, pm25, pm10, tsp, noise)
+
         jwts = []
         if int_on:
             j = self.net.create_jwt_s1_env(
@@ -433,14 +442,14 @@ class SparingApp:
                 processed=False,
                 wind_speed=wind_speed, wind_dir=wind_dir,
                 air_temp=air_temp, humidity=humidity, pressure=pressure)
-            if j: jwts.append(("Internal", j))
+            if j: jwts.append(("Internal", pm25, pm10, tsp, noise, j))
         if klhk_on:
             j = self.net.create_jwt_s1_env(
                 pm25, pm10, tsp, noise, timestamp, link_video_id,
                 processed=True,
                 wind_speed=wind_speed, wind_dir=wind_dir,
                 air_temp=air_temp, humidity=humidity, pressure=pressure)
-            if j: jwts.append(("KLHK", j))
+            if j: jwts.append(("KLHK", pm25_p, pm10_p, tsp_p, noise_p, j))
         if not jwts:
             return
 
@@ -452,7 +461,7 @@ class SparingApp:
                 self._log(f"[S1] {flushed} data lama dari buffer berhasil dikirim ulang")
 
         ok_any = False
-        for tag, jwt in jwts:
+        for tag, p25, p10, ptsp, pnoise, jwt in jwts:
             if not online:
                 self.storage_s1.save(jwt_s1=jwt)
                 continue
@@ -462,7 +471,7 @@ class SparingApp:
             if ok:
                 ok_any = True
                 self._log(f"✓ [S1/{tag}] PM+Noise  "
-                          f"PM2.5={pm25} PM10={pm10} TSP={tsp} Noise={noise} dB")
+                          f"PM2.5={p25} PM10={p10} TSP={ptsp} Noise={pnoise} dB")
             else:
                 self._log(f"✗ [S1/{tag}] Gagal — disimpan ke buffer")
                 self.storage_s1.save(jwt_s1=jwt)
