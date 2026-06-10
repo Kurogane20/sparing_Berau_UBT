@@ -35,11 +35,34 @@ class NetworkManager:
 
     # ── Internet check ────────────────────────────────────────────────────────
     def check_internet(self) -> bool:
-        """Cek koneksi ke internet via socket TCP — tidak butuh DNS."""
+        """
+        Cek koneksi jaringan ke server.
+        1. Coba internet publik via 8.8.8.8:53 (Google DNS).
+        2. Fallback: coba TCP langsung ke host server (skenario LAN tanpa internet).
+        """
+        # Coba internet publik
         try:
-            socket.setdefaulttimeout(5)
-            socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(
-                ("8.8.8.8", 53))
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(5)
+            s.connect(("8.8.8.8", 53))
+            s.close()
+            return True
+        except Exception:
+            pass
+        # Fallback: coba TCP ke host server (LAN)
+        try:
+            url = self.cfg.get("secret_key_url1", "")
+            if not url:
+                return False
+            # Ekstrak host dan port dari URL (http://host:port/path atau https://host/path)
+            hostpart = url.split("//")[-1].split("/")[0]  # "host:port" atau "host"
+            tokens   = hostpart.split(":")
+            host     = tokens[0]
+            port     = int(tokens[1]) if len(tokens) > 1 else (443 if url.startswith("https") else 80)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(5)
+            s.connect((host, port))
+            s.close()
             return True
         except Exception:
             return False
