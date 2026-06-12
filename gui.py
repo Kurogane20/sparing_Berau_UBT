@@ -72,6 +72,7 @@ class SparingGUI:
         self._limits_pack_ref: tk.Widget = None      # widget sebelum limits card
         self._last_card_shadow: tk.Frame = None      # diset oleh _card()
         self._right_canvas:    tk.Canvas = None      # canvas scroll panel kanan
+        self._op_btn_refs:     dict      = {}        # mode → (active_bg, Button)
 
         self._setup_window()
         self._calc_scale()
@@ -1220,6 +1221,7 @@ class SparingGUI:
                  font=(_FONT_UI, self._fs(7))).pack(anchor="w", pady=(2, 0))
         self._refresh_gap_info()
 
+
     def _get_app_title(self) -> str:
         water_on = any(self.cfg.get(k, True)
                        for k in ("sensor_ph_enabled", "sensor_tss_enabled",
@@ -1241,7 +1243,7 @@ class SparingGUI:
     # ═══════════════════════════════════════════════════════════════════════════
     def _build_footer(self) -> None:
         tk.Frame(self.root, bg=C["border"], height=1).pack(fill="x")
-        bar = tk.Frame(self.root, bg=C["panel"], height=self._sp(22))
+        bar = tk.Frame(self.root, bg=C["panel"], height=self._sp(30))
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
 
@@ -1254,6 +1256,35 @@ class SparingGUI:
                  bg=C["panel"], fg=C["text_muted"],
                  font=(_FONT_UI, self._fs(9))).pack(
             side="left", padx=self._sp(10))
+
+        tk.Frame(bar, bg=C["border"],
+                 width=1).pack(side="left", fill="y", pady=self._sp(4))
+
+        # Status Operasi — selalu terlihat, tanpa perlu unlock (SK 3441 §6.2.6.6g)
+        _op_defs = [
+            ("normal",      "Normal",  C["primary"],  "white"),
+            ("stopped",     "−1",      "#C62828",     "white"),
+            ("calibrating", "−2",      "#E65100",     "white"),
+            ("malfunction", "−3",      "#6A1B9A",     "white"),
+        ]
+        cur_mode = getattr(self.app, "_op_mode", "normal")
+        for mode, label, _bg, _fg in _op_defs:
+            is_active = (cur_mode == mode)
+            btn = tk.Button(
+                bar, text=label,
+                command=lambda m=mode: self._on_set_op_mode(m),
+                bg=_bg if is_active else C["bg"],
+                fg="white" if is_active else C["text_muted"],
+                font=(_FONT_UI, self._fs(7), "bold"),
+                relief="flat", cursor="hand2",
+                padx=self._sp(7), pady=0,
+                activebackground=_bg, activeforeground="white",
+            )
+            btn.pack(side="left", padx=(0, self._sp(1)), pady=self._sp(3))
+            self._op_btn_refs[mode] = (_bg, btn)
+
+        tk.Frame(bar, bg=C["border"],
+                 width=1).pack(side="left", fill="y", pady=self._sp(4))
 
         self._flat_btn(bar, "⛶  F11",
                        self._toggle_fullscreen,
@@ -1524,7 +1555,7 @@ class SparingGUI:
 
     def _open_sensor_select(self) -> None:
         """Dialog pilih sensor yang aktif — ditampilkan dan dikirim ke server."""
-        w, h = self._sp(380), self._sp(420)
+        w, h = self._sp(420), self._sp(540)
         win = self._make_dialog(w, h, "Pilihan Sensor")
         win.configure(bg=C["panel"])
 
@@ -1627,8 +1658,9 @@ class SparingGUI:
 
             tk.Label(row, text=label,
                      bg=C["panel"], fg=C["text"],
-                     font=(_FONT_UI, self._fs(10))).pack(side="left", expand=True,
-                                                          anchor="w")
+                     font=(_FONT_UI, self._fs(10)),
+                     wraplength=w - self._sp(80),
+                     justify="left").pack(side="left", expand=True, anchor="w")
 
             tk.Frame(win, bg=C["border"], height=1).pack(
                 fill="x", padx=self._sp(16))
@@ -1851,6 +1883,22 @@ class SparingGUI:
                 if is_test else
                 f"Mode: LIVE  ·  Port: {port}  ·  {SYS_PLATFORM}  ·  ESC = keluar fullscreen"
             )
+
+    # ── Status Operasi helpers ────────────────────────────────────────────────
+    def _on_set_op_mode(self, mode: str) -> None:
+        """Tombol status operasi diklik."""
+        self.app.set_operation_mode(mode)
+
+    def update_op_mode_btn(self, mode: str) -> None:
+        """Perbarui tampilan tombol status operasi (dipanggil dari main thread)."""
+        for m, (act_bg, btn) in self._op_btn_refs.items():
+            try:
+                if m == mode:
+                    btn.configure(bg=act_bg, fg="white")
+                else:
+                    btn.configure(bg=C["card_alt"], fg=C["text"])
+            except Exception:
+                pass
 
     # ── Gap fill helpers ──────────────────────────────────────────────────────
     def _on_gap_fill(self) -> None:

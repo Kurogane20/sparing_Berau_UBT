@@ -56,6 +56,7 @@ class SparingApp:
         self._sensor_wake = threading.Event()     # set() untuk mempersingkat sleep sensor loop
         self._last_r: Optional[SensorReading] = None  # reading terakhir untuk sinkronisasi sim
         self._last_r_lock = threading.Lock()
+        self._op_mode = "normal"   # normal / stopped / calibrating / malfunction
 
     def start(self) -> None:
         # Inisialisasi sensor reader (gagal graceful → simulasi aktif)
@@ -339,13 +340,23 @@ class SparingApp:
         # Hitung nilai processed sekali untuk log KLHK
         proc_ph, proc_tss, proc_debit, *_ = self.net.get_processed(r)
 
+        op = self._op_mode
+        sc = {"stopped": -1, "calibrating": -2, "malfunction": -3}.get(op)
         jwts = []
-        if int_on:
-            j = self.net.create_jwt1_water(r, processed=False)
-            if j: jwts.append(("Internal", r.ph, r.tss, r.debit, j))
-        if klhk_on:
-            j = self.net.create_jwt1_water(r, processed=True)
-            if j: jwts.append(("KLHK", proc_ph, proc_tss, proc_debit, j))
+        if sc is not None:
+            if int_on:
+                j = self.net.create_jwt1_water_status(sc, r.timestamp, processed=False)
+                if j: jwts.append(("Internal", sc, sc, sc, j))
+            if klhk_on:
+                j = self.net.create_jwt1_water_status(sc, r.timestamp, processed=True)
+                if j: jwts.append(("KLHK", sc, sc, sc, j))
+        else:
+            if int_on:
+                j = self.net.create_jwt1_water(r, processed=False)
+                if j: jwts.append(("Internal", r.ph, r.tss, r.debit, j))
+            if klhk_on:
+                j = self.net.create_jwt1_water(r, processed=True)
+                if j: jwts.append(("KLHK", proc_ph, proc_tss, proc_debit, j))
         if not jwts:
             return
 
@@ -377,6 +388,8 @@ class SparingApp:
         setiap 2 menit, bersamaan dengan data air.
         """
         if not self.cfg.get("sensor_weather_enabled", True):
+            return
+        if self._op_mode != "normal":
             return
         int_on  = self.cfg.get("logger_internal", True)
         klhk_on = self.cfg.get("logger_klhk",     False)
@@ -435,21 +448,31 @@ class SparingApp:
         _, _, _, pm25_p, pm10_p, tsp_p, noise_p = self.net._apply_limits(
             0, 0, 0, pm25, pm10, tsp, noise)
 
+        op = self._op_mode
+        sc = {"stopped": -1, "calibrating": -2, "malfunction": -3}.get(op)
         jwts = []
-        if int_on:
-            j = self.net.create_jwt_s1_env(
-                pm25, pm10, tsp, noise, timestamp, link_video_id,
-                processed=False,
-                wind_speed=wind_speed, wind_dir=wind_dir,
-                air_temp=air_temp, humidity=humidity, pressure=pressure)
-            if j: jwts.append(("Internal", pm25, pm10, tsp, noise, j))
-        if klhk_on:
-            j = self.net.create_jwt_s1_env(
-                pm25, pm10, tsp, noise, timestamp, link_video_id,
-                processed=True,
-                wind_speed=wind_speed, wind_dir=wind_dir,
-                air_temp=air_temp, humidity=humidity, pressure=pressure)
-            if j: jwts.append(("KLHK", pm25_p, pm10_p, tsp_p, noise_p, j))
+        if sc is not None:
+            if int_on:
+                j = self.net.create_jwt_s1_env_status(sc, timestamp, link_video_id, processed=False)
+                if j: jwts.append(("Internal", sc, sc, sc, sc, j))
+            if klhk_on:
+                j = self.net.create_jwt_s1_env_status(sc, timestamp, link_video_id, processed=True)
+                if j: jwts.append(("KLHK", sc, sc, sc, sc, j))
+        else:
+            if int_on:
+                j = self.net.create_jwt_s1_env(
+                    pm25, pm10, tsp, noise, timestamp, link_video_id,
+                    processed=False,
+                    wind_speed=wind_speed, wind_dir=wind_dir,
+                    air_temp=air_temp, humidity=humidity, pressure=pressure)
+                if j: jwts.append(("Internal", pm25, pm10, tsp, noise, j))
+            if klhk_on:
+                j = self.net.create_jwt_s1_env(
+                    pm25, pm10, tsp, noise, timestamp, link_video_id,
+                    processed=True,
+                    wind_speed=wind_speed, wind_dir=wind_dir,
+                    air_temp=air_temp, humidity=humidity, pressure=pressure)
+                if j: jwts.append(("KLHK", pm25_p, pm10_p, tsp_p, noise_p, j))
         if not jwts:
             return
 
@@ -489,7 +512,9 @@ class SparingApp:
         Jika offline atau gagal, simpan ke buffer_s2.
         """
         batch  = list(self.batch)
-        jwt2   = self.net.create_jwt2(batch)
+        _sc    = {"stopped": -1, "calibrating": -2, "malfunction": -3}.get(self._op_mode)
+        jwt2   = (self.net.create_jwt2_status(_sc, len(batch) or self.cfg["data_batch_size"])
+                  if _sc is not None else self.net.create_jwt2(batch))
         now    = time.time()
 
         if not jwt2:
@@ -677,6 +702,20 @@ class SparingApp:
             daemon=True,
             name="gap_fill",
         ).start()
+
+    def set_operation_mode(self, mode: str) -> None:
+        """Set mode operasi sesuai SK 3441/2025 Pasal 6.2.6.6g.
+        mode: 'normal' | 'stopped' (-1) | 'calibrating' (-2) | 'malfunction' (-3)
+        """
+        self._op_mode = mode
+        _labels = {
+            "normal":      "Normal — data sensor dikirim",
+            "stopped":     "Produksi BERHENTI — mengirim kode -1",
+            "calibrating": "KALIBRASI/AUDIT — mengirim kode -2",
+            "malfunction": "GANGGUAN PERALATAN — mengirim kode -3",
+        }
+        self._log(f"[STATUS] Mode operasi: {_labels.get(mode, mode)}")
+        self.root.after(0, self.gui.update_op_mode_btn, mode)
 
     def _quit(self) -> None:
         self._running = False
