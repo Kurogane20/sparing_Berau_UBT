@@ -21,6 +21,7 @@ from network     import NetworkManager
 from storage     import DataStorage
 from gui         import SparingGUI
 import gap_filler
+from sysmon      import SystemMonitor
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class SparingApp:
         self._last_r: Optional[SensorReading] = None  # reading terakhir untuk sinkronisasi sim
         self._last_r_lock = threading.Lock()
         self._op_mode = "normal"   # normal / stopped / calibrating / malfunction
+        self.sysmon   = SystemMonitor()   # monitor resource untuk diagnosa mati
 
     def start(self) -> None:
         # Inisialisasi sensor reader (gagal graceful → simulasi aktif)
@@ -80,6 +82,9 @@ class SparingApp:
                          daemon=True, name="network").start()
         threading.Thread(target=self._noise_loop,
                          daemon=True, name="noise").start()
+        if self.cfg.get("sysmon_enabled", True):
+            threading.Thread(target=self._sysmon_loop,
+                             daemon=True, name="sysmon").start()
 
         # Pompa antrian log ke GUI
         self._pump_log()
@@ -327,6 +332,83 @@ class SparingApp:
             except Exception as e:
                 self._log(f"[ERROR] noise loop: {e}")
             time.sleep(_SAMPLE_SEC)
+
+    # ── Monitor resource sistem — diagnosa penyebab device mati ──────────────
+    def _sysmon_loop(self) -> None:
+        """
+        Catat snapshot CPU/RAM/disk/suhu ke resource.log (di-fsync ke disk)
+        tiap interval. Saat suhu/RAM/disk/undervoltage melewati ambang,
+        kirim [WARN] ke log GUI + server. Baris terakhir resource.log
+        menunjukkan kondisi device sesaat sebelum mati mendadak.
+        """
+        interval   = max(10, int(self.cfg.get("sysmon_interval_seconds", 60)))
+        temp_warn  = self.cfg.get("sysmon_temp_warn",     75.0)
+        temp_crit  = self.cfg.get("sysmon_temp_crit",     82.0)
+        mem_warn   = self.cfg.get("sysmon_mem_warn_pct",  90.0)
+        disk_warn  = self.cfg.get("sysmon_disk_warn_pct", 90.0)
+        summary_n  = max(1, int(self.cfg.get("sysmon_summary_every", 10)))
+
+        # Catat info startup sekali (penanda device baru menyala / habis reboot)
+        first = self.sysmon.snapshot()
+        self.sysmon.write_line("[BOOT] " + self.sysmon.format_line(first))
+        self.root.after(0, self.gui.update_sysmon,
+                        first.get("cpu_pct"), first.get("cpu_temp"),
+                        first.get("mem_used_pct"), first.get("disk_used_pct"), "ok")
+        up = first.get("uptime_s")
+        if up is not None:
+            self._log(f"[SYS] Monitor resource aktif — uptime {up // 60} menit, "
+                      f"interval {interval}s → resource.log")
+
+        count = 0
+        while self._running:
+            time.sleep(interval)
+            try:
+                snap = self.sysmon.snapshot()
+                line = self.sysmon.format_line(snap)
+                self.sysmon.write_line(line)   # selalu tulis (forensik) + fsync
+
+                # ── Deteksi kondisi bahaya ────────────────────────────────────
+                warns = []
+                severity = "ok"
+                temp = snap.get("cpu_temp")
+                if temp is not None:
+                    if temp >= temp_crit:
+                        warns.append(f"SUHU KRITIS {temp}°C — risiko thermal shutdown")
+                        severity = "crit"
+                    elif temp >= temp_warn:
+                        warns.append(f"suhu tinggi {temp}°C")
+                        severity = "warn"
+                mem = snap.get("mem_used_pct")
+                if mem is not None and mem >= mem_warn:
+                    warns.append(f"RAM {mem}% (sisa {snap.get('mem_avail_mb','?')}MB) — risiko OOM")
+                    if severity != "crit": severity = "warn"
+                disk = snap.get("disk_used_pct")
+                if disk is not None and disk >= disk_warn:
+                    warns.append(f"disk {disk}% (sisa {snap.get('disk_free_gb','?')}GB) — risiko gagal tulis")
+                    if severity != "crit": severity = "warn"
+                flags = snap.get("throttle_flags")
+                if flags:
+                    uv = [f for f in flags if "UNDERVOLTAGE" in f or "undervoltage" in f]
+                    if uv:
+                        warns.append("UNDERVOLTAGE — power supply/kabel lemah")
+                        severity = "crit"
+
+                self.root.after(0, self.gui.update_sysmon,
+                                snap.get("cpu_pct"), temp, mem, disk, severity)
+
+                if warns:
+                    self._log("[WARN] [SYS] " + "  ·  ".join(warns))
+                elif count % summary_n == 0:
+                    # Ringkasan normal sesekali agar terlihat device sehat
+                    self._log(
+                        f"[SYS] CPU {snap.get('cpu_pct','?')}%  "
+                        f"Suhu {snap.get('cpu_temp','?')}°C  "
+                        f"RAM {snap.get('mem_used_pct','?')}%  "
+                        f"Disk {snap.get('disk_used_pct','?')}%"
+                    )
+                count += 1
+            except Exception as e:
+                self._log(f"[ERROR] sysmon loop: {e}")
 
     # ── Kirim ke Server 1 — kualitas air, per 2 menit ────────────────────────
     def _send_s1_water(self, r: SensorReading) -> None:

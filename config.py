@@ -67,6 +67,15 @@ DEFAULT_CONFIG: dict = {
     "interval_seconds":       120,
     "data_batch_size":        30,
 
+    # ── Monitor resource sistem (diagnosa penyebab device mati) ──────────────
+    "sysmon_enabled":         True,    # catat CPU/RAM/disk/suhu ke resource.log
+    "sysmon_interval_seconds": 60,     # interval snapshot resource
+    "sysmon_temp_warn":       75.0,    # °C — peringatan suhu CPU
+    "sysmon_temp_crit":       82.0,    # °C — kritis (Pi throttle ~80, shutdown ~85)
+    "sysmon_mem_warn_pct":    90.0,    # % — peringatan RAM hampir penuh (risiko OOM)
+    "sysmon_disk_warn_pct":   90.0,    # % — peringatan disk/SD hampir penuh
+    "sysmon_summary_every":   10,      # tampilkan ringkasan normal ke log tiap N snapshot
+
     # Pilihan sensor aktif (True = tampil + kirim ke server)
     "sensor_ph_enabled":      True,
     "sensor_tss_enabled":     True,

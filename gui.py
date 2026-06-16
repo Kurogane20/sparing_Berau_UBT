@@ -1286,6 +1286,16 @@ class SparingGUI:
         tk.Frame(bar, bg=C["border"],
                  width=1).pack(side="left", fill="y", pady=self._sp(4))
 
+        # Indikator resource sistem (diisi oleh _sysmon_loop via update_sysmon)
+        if self.cfg.get("sysmon_enabled", True):
+            self._sys_var = tk.StringVar(
+                value="CPU —  ·  — °C  ·  RAM —  ·  Disk —")
+            self._sys_lbl = tk.Label(
+                bar, textvariable=self._sys_var,
+                bg=C["panel"], fg=C["text_muted"],
+                font=(_FONT_MONO, self._fs(8)))
+            self._sys_lbl.pack(side="left", padx=self._sp(10))
+
         self._flat_btn(bar, "⛶  F11",
                        self._toggle_fullscreen,
                        C["bg"], C["text_muted"],
@@ -2033,6 +2043,22 @@ class SparingGUI:
 
     def update_buffer(self, n: int) -> None:
         self._buf_var.set(str(n))
+
+    def update_sysmon(self, cpu, temp, mem, disk,
+                      severity: str = "ok") -> None:
+        """Perbarui indikator resource di footer.
+        severity: 'ok' (abu) / 'warn' (oranye) / 'crit' (merah)."""
+        if not hasattr(self, "_sys_var"):
+            return
+        def f(v, suf=""):
+            return f"{v}{suf}" if v is not None else "—"
+        self._sys_var.set(
+            f"CPU {f(cpu, '%')}  ·  {f(temp, '°C')}  ·  "
+            f"RAM {f(mem, '%')}  ·  Disk {f(disk, '%')}")
+        color = {"ok":   C["text_muted"],
+                 "warn": C["warning"],
+                 "crit": C["offline"]}.get(severity, C["text_muted"])
+        self._sys_lbl.configure(fg=color)
 
     def _set_send_status_color(self, color: str) -> None:
         self._send_status_lbl.configure(fg=color)
