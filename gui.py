@@ -1296,35 +1296,35 @@ class SparingGUI:
                 font=(_FONT_MONO, self._fs(8)))
             self._sys_lbl.pack(side="left", padx=self._sp(10))
 
+        # Tombol rahasia (kunci) — di-pack PERTAMA agar selalu di pojok kanan
+        # dan tak pernah terdorong keluar saat footer sempit.
+        self._lock_btn_var = tk.StringVar(value="🔒")
+        lck = tk.Label(bar, textvariable=self._lock_btn_var,
+                       bg=C["panel"], fg=C["border"],
+                       font=(_FONT_UI, self._fs(13)),
+                       cursor="hand2")
+        lck.pack(side="right", padx=(self._sp(4), self._sp(6)), pady=2)
+        lck.bind("<Button-1>", lambda e: self._show_lock_dialog())
+
         self._flat_btn(bar, "⛶  F11",
                        self._toggle_fullscreen,
                        C["bg"], C["text_muted"],
-                       pady=0).pack(side="right", padx=self._sp(6), pady=3)
+                       pady=0).pack(side="right", padx=self._sp(4), pady=3)
 
         self._flat_btn(bar, "⚙  Sensor",
                        self._open_sensor_select,
                        C["bg"], C["accent"],
                        pady=0).pack(side="right", padx=(0, self._sp(2)), pady=3)
 
-        # Tombol rahasia — terlihat seperti indikator biasa
-        self._lock_btn_var = tk.StringVar(value="🔒")
-        lck = tk.Label(bar, textvariable=self._lock_btn_var,
-                       bg=C["panel"], fg=C["border"],
-                       font=(_FONT_UI, self._fs(13)),
-                       cursor="hand2")
-        lck.pack(side="right", padx=(0, 2), pady=2)
-        lck.bind("<Button-1>", lambda e: self._show_lock_dialog())
-
         is_test = self.cfg.get("simulate_sensors", False)
         port = self.cfg.get("serial_port", "—")
         self._mode_label_var = tk.StringVar(
-            value=f"Mode: {'FLOAT' if is_test else 'LIVE'}  ·  Port: {port}  ·  "
-                  f"{SYS_PLATFORM}  ·  ESC = keluar fullscreen")
+            value=f"Mode: {'FLOAT' if is_test else 'LIVE'}  ·  {port}")
         tk.Label(bar,
                  textvariable=self._mode_label_var,
                  bg=C["panel"], fg=C["text_muted"],
                  font=(_FONT_UI, self._fs(8))).pack(
-            side="right", padx=self._sp(12))
+            side="right", padx=self._sp(8))
 
     # ═══════════════════════════════════════════════════════════════════════════
     # WIDGET HELPERS
@@ -1889,10 +1889,7 @@ class SparingGUI:
         if hasattr(self, "_mode_label_var"):
             port = self.cfg.get("serial_port", "—")
             self._mode_label_var.set(
-                f"Mode: FLOAT  ·  Port: {port}  ·  {SYS_PLATFORM}  ·  ESC = keluar fullscreen"
-                if is_test else
-                f"Mode: LIVE  ·  Port: {port}  ·  {SYS_PLATFORM}  ·  ESC = keluar fullscreen"
-            )
+                f"Mode: {'FLOAT' if is_test else 'LIVE'}  ·  {port}")
 
     # ── Status Operasi helpers ────────────────────────────────────────────────
     def _on_set_op_mode(self, mode: str) -> None:
@@ -2130,7 +2127,9 @@ class SparingGUI:
 
         self._log_txt.see("end")
         self._log_txt.configure(state="disabled")
-        self._statusbar_var.set(f"[{ts}] {msg}")
+        # Statusbar footer — potong agar tidak mendorong tombol footer keluar
+        short = msg if len(msg) <= 44 else msg[:43] + "…"
+        self._statusbar_var.set(f"[{ts}] {short}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # RECONNECT & DIALOGS
