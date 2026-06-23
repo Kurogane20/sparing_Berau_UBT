@@ -1196,6 +1196,14 @@ class SparingGUI:
         )
         self._test_mode_btn.pack(fill="x", pady=(4, 0))
 
+        # ── Floating per Sensor ───────────────────────────────────────────────
+        self._flat_btn(
+            self._ctrl_wrapper, "⚗  Floating per Sensor",
+            self._open_float_select,
+            C["card_alt"], C["text"],
+            border=True, pady=8,
+        ).pack(fill="x", pady=(4, 0))
+
         # ── Gap Fill ──────────────────────────────────────────────────────────
         gap_wrap = tk.Frame(self._ctrl_wrapper, bg=C["bg"])
         gap_wrap.pack(fill="x", pady=(4, 0))
@@ -1670,6 +1678,116 @@ class SparingGUI:
                      bg=C["panel"], fg=C["text"],
                      font=(_FONT_UI, self._fs(10)),
                      wraplength=w - self._sp(80),
+                     justify="left").pack(side="left", expand=True, anchor="w")
+
+            tk.Frame(win, bg=C["border"], height=1).pack(
+                fill="x", padx=self._sp(16))
+
+    def _open_float_select(self) -> None:
+        """Dialog atur floating per sensor — sensor ON = data simulasi meski RS485 aktif."""
+        w, h = self._sp(440), self._sp(560)
+        win = self._make_dialog(w, h, "Floating per Sensor")
+        win.configure(bg=C["panel"])
+
+        sensors = [
+            ("float_ph",      "pH",              C["s_ph"],    "#A8CCFF"),
+            ("float_tss",     "TSS (mg/L)",      C["s_tss"],   "#A0D8F0"),
+            ("float_debit",   "Debit (m³/s)",    C["s_debit"], "#9AECD8"),
+            ("float_dust",    "Debu — PM2.5 / PM10 / PM100 (RK300-02)",
+             "#37474F", "#90A4AE"),
+            ("float_noise",   "Kebisingan — Noise dB (Sound Level Meter)",
+             "#4A148C", "#CE93D8"),
+            ("float_temp",    "Suhu Air (°C)",   "#BF360C", "#FFAB91"),
+            ("float_weather", "Cuaca — Angin / Suhu Udara / Kelembaban / Tekanan (YGC-CSM)",
+             "#01579B", "#81D4FA"),
+        ]
+
+        check_vars = {}
+
+        def _apply():
+            changed = False
+            for cfg_key, var in check_vars.items():
+                if self.cfg.get(cfg_key, False) != var.get():
+                    self.cfg[cfg_key] = var.get()
+                    changed = True
+            if changed:
+                save_config(self.cfg)
+                names = [s[1].split(" —")[0].split(" (")[0]
+                         for s in sensors if self.cfg.get(s[0], False)]
+                self.log(f"⚗ Floating per sensor: "
+                         f"{', '.join(names) if names else '(tidak ada — semua hardware)'}")
+            win.destroy()
+
+        # ── Tombol bar — pack PERTAMA ke bawah agar selalu terlihat ──────────
+        tk.Frame(win, bg=C["border"], height=1).pack(side="bottom", fill="x")
+        btn_bar = tk.Frame(win, bg=C["panel"],
+                           padx=self._sp(16), pady=self._sp(10))
+        btn_bar.pack(side="bottom", fill="x")
+        self._flat_btn(btn_bar, "✓  Terapkan",
+                       _apply, C["primary"], "white",
+                       pady=7).pack(side="left", padx=(0, self._sp(8)),
+                                    ipadx=self._sp(10))
+        self._flat_btn(btn_bar, "✕  Batal",
+                       win.destroy, C["bg"], C["text_muted"],
+                       pady=7).pack(side="left", ipadx=self._sp(10))
+
+        # ── Header ────────────────────────────────────────────────────────────
+        tk.Frame(win, bg="#F57F17", height=self._sp(4)).pack(fill="x")
+        tk.Label(win, text="FLOATING PER SENSOR",
+                 bg=C["panel"], fg=C["text"],
+                 font=(_FONT_UI, self._fs(12), "bold"),
+                 padx=self._sp(16), pady=self._sp(12)).pack(anchor="w")
+        tk.Frame(win, bg=C["border"], height=1).pack(fill="x")
+
+        info = ("Sensor AKTIF (oranye) = data DIPALSUKAN (simulasi)\n"
+                "meski RS485 aktif. Sensor nonaktif = baca dari hardware.")
+        if self.cfg.get("simulate_sensors", False):
+            info = ("⚠ Floating Mode GLOBAL sedang AKTIF — semua sensor\n"
+                    "sudah floating. Pengaturan ini berlaku saat global NONAKTIF.")
+        tk.Label(win, text=info,
+                 bg=C["panel"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(8)),
+                 justify="left").pack(anchor="w",
+                                      padx=self._sp(16),
+                                      pady=(self._sp(10), self._sp(4)))
+
+        # ── Daftar sensor ─────────────────────────────────────────────────────
+        for cfg_key, label, bg, lc in sensors:
+            var = tk.BooleanVar(value=self.cfg.get(cfg_key, False))
+            check_vars[cfg_key] = var
+
+            row = tk.Frame(win, bg=C["panel"],
+                           pady=self._sp(6), padx=self._sp(16))
+            row.pack(fill="x")
+
+            tk.Frame(row, bg=bg,
+                     width=self._sp(10), height=self._sp(10)).pack(
+                side="left", padx=(0, self._sp(10)))
+
+            # Toggle ON = floating (warna oranye penanda data palsu)
+            _lbl = tk.Label(
+                row,
+                text="FLOAT" if var.get() else "HW",
+                bg="#F57F17" if var.get() else C["border"],
+                fg="white",
+                font=(_FONT_UI, self._fs(8), "bold"),
+                width=6, padx=self._sp(3), pady=self._sp(3),
+                cursor="hand2",
+            )
+            _lbl.pack(side="right", padx=(self._sp(6), 0))
+
+            def _bind_toggle(_v=var, _l=_lbl):
+                def _tog(e=None):
+                    _v.set(not _v.get())
+                    _l.config(text="FLOAT" if _v.get() else "HW",
+                              bg="#F57F17" if _v.get() else C["border"])
+                _l.bind("<Button-1>", _tog)
+            _bind_toggle()
+
+            tk.Label(row, text=label,
+                     bg=C["panel"], fg=C["text"],
+                     font=(_FONT_UI, self._fs(10)),
+                     wraplength=w - self._sp(110),
                      justify="left").pack(side="left", expand=True, anchor="w")
 
             tk.Frame(win, bg=C["border"], height=1).pack(

@@ -174,11 +174,69 @@ class SensorReader:
         self._connect()
         return self._port_ok
 
+    # ── Floating per-sensor ───────────────────────────────────────────────────
+    def _is_float(self, sensor: str) -> bool:
+        """
+        True bila sensor ini disetel floating (simulasi) — entah karena
+        Floating Mode global aktif, atau flag float_<sensor> di-set.
+        Saat True, pembacaan mengembalikan nilai simulasi meski RS485 aktif.
+        """
+        return bool(self.cfg.get("simulate_sensors") or
+                    self.cfg.get(f"float_{sensor}", False))
+
+    # ── Nilai simulasi per-sensor (range sama dengan _simulate() di app.py) ───
+    def _sim_ph(self) -> float:
+        c = self.cfg
+        return round(random.uniform(c.get("sim_ph_min", 7.5),
+                                    c.get("sim_ph_max", 7.6)), 2)
+
+    def _sim_tss(self) -> float:
+        c = self.cfg
+        return round(random.uniform(c.get("sim_tss_min", 80.0),
+                                    c.get("sim_tss_max", 90.0)), 2)
+
+    def _sim_debit(self) -> float:
+        c = self.cfg
+        return round(random.uniform(c.get("sim_debit_min", 0.01),
+                                    c.get("sim_debit_max", 0.10)), 2)
+
+    def _sim_dust(self) -> tuple:
+        c = self.cfg
+        tsp = round(random.uniform(c.get("sim_tsp_min", 30.0),
+                                   c.get("sim_tsp_max", 200.0)), 1)
+        pm25, pm10 = self._calc_pm_from_tsp(tsp)
+        return pm25, pm10, tsp
+
+    def _sim_noise(self) -> float:
+        c = self.cfg
+        return round(random.uniform(c.get("sim_noise_min", 40.0),
+                                    c.get("sim_noise_max", 80.0)), 1)
+
+    def _sim_temp(self) -> float:
+        c = self.cfg
+        return round(random.uniform(c.get("sim_temp_min", 25.0),
+                                    c.get("sim_temp_max", 30.0)), 1)
+
+    def _sim_weather(self) -> tuple:
+        c = self.cfg
+        return (
+            round(random.uniform(c.get("sim_wind_speed_min", 0.0),
+                                 c.get("sim_wind_speed_max", 5.0)), 2),
+            round(random.uniform(c.get("sim_wind_dir_min", 0),
+                                 c.get("sim_wind_dir_max", 359))),
+            round(random.uniform(c.get("sim_air_temp_min", 25.0),
+                                 c.get("sim_air_temp_max", 35.0)), 1),
+            round(random.uniform(c.get("sim_humidity_min", 60.0),
+                                 c.get("sim_humidity_max", 90.0)), 1),
+            round(random.uniform(c.get("sim_pressure_min", 1000.0),
+                                 c.get("sim_pressure_max", 1015.0)), 1),
+        )
+
     # ── pH ────────────────────────────────────────────────────────────────────
     def _read_ph(self) -> float:
         """Slave ID 2, holding register 0-1. Nilai = reg[1] / 100."""
-        if self._mb is None:
-            return round(random.uniform(6.0, 8.0), 2)
+        if self._is_float("ph") or self._mb is None:
+            return self._sim_ph()
         try:
             r = self._rhr(0, 2, self.cfg["slave_id_ph"])
             if not r.isError():
@@ -196,8 +254,8 @@ class SensorReader:
     # ── TSS ───────────────────────────────────────────────────────────────────
     def _read_tss(self) -> float:
         """Slave ID 10, holding register 0-4. Float format CDAB: reg[3]<<16 | reg[2]."""
-        if self._mb is None:
-            return round(random.uniform(60.0, 90.0), 2)
+        if self._is_float("tss") or self._mb is None:
+            return self._sim_tss()
         try:
             r = self._rhr(0, 5, self.cfg["slave_id_tss"])
             if not r.isError():
@@ -216,8 +274,8 @@ class SensorReader:
     # ── Debit ─────────────────────────────────────────────────────────────────
     def _read_debit(self) -> float:
         """Slave ID 1, holding register 0-29. Double ABCD dari reg[15-18]."""
-        if self._mb is None:
-            return round(random.uniform(0.010, 0.030), 5)
+        if self._is_float("debit") or self._mb is None:
+            return self._sim_debit()
         try:
             r = self._rhr(0, 30, self.cfg["slave_id_debit"])
             if not r.isError():
@@ -262,10 +320,8 @@ class SensorReader:
         PM2.5 = pm25_factor × TSP
         PM10  = pm10_factor × TSP
         """
-        if self._mb is None:
-            tsp  = round(random.uniform(30, 200), 1)
-            pm25, pm10 = self._calc_pm_from_tsp(tsp)
-            return pm25, pm10, tsp
+        if self._is_float("dust") or self._mb is None:
+            return self._sim_dust()
         try:
             r = self._rhr(1, 3, self.cfg["slave_id_dust"])
             if not r.isError():
@@ -288,8 +344,8 @@ class SensorReader:
         Register address=0, count=1:
           reg[0] / 10 = noise level (dB)
         """
-        if self._mb is None:
-            return round(random.uniform(40.0, 80.0), 1)
+        if self._is_float("noise") or self._mb is None:
+            return self._sim_noise()
         try:
             r = self._rhr(0, 1, self.cfg["slave_id_noise"])
             if not r.isError():
@@ -332,20 +388,8 @@ class SensorReader:
           [12] 0x000C — arah angin   (signed, 1° resolusi)
         0x7FFF = tidak terhubung/invalid → kembalikan 0.0.
         """
-        if self._mb is None:
-            c = self.cfg
-            return (
-                round(random.uniform(c.get("sim_wind_speed_min", 0.0),
-                                     c.get("sim_wind_speed_max", 5.0)), 2),
-                round(random.uniform(c.get("sim_wind_dir_min", 0),
-                                     c.get("sim_wind_dir_max", 359))),
-                round(random.uniform(c.get("sim_air_temp_min", 25.0),
-                                     c.get("sim_air_temp_max", 35.0)), 1),
-                round(random.uniform(c.get("sim_humidity_min", 60.0),
-                                     c.get("sim_humidity_max", 90.0)), 1),
-                round(random.uniform(c.get("sim_pressure_min", 1000.0),
-                                     c.get("sim_pressure_max", 1015.0)), 1),
-            )
+        if self._is_float("weather") or self._mb is None:
+            return self._sim_weather()
         try:
             r = self._rhr(0x0000, 13, self.cfg["slave_id_weather"])
             if r.isError():
@@ -390,8 +434,8 @@ class SensorReader:
         Register address=0, count=1:
           reg[0] / 10 = suhu (°C)
         """
-        if self._mb is None:
-            return round(random.uniform(25.0, 30.0), 1)
+        if self._is_float("temp") or self._mb is None:
+            return self._sim_temp()
         try:
             r = self._rhr(0, 1, self.cfg["slave_id_temp"])
             if not r.isError():

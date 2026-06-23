@@ -157,7 +157,12 @@ class SparingApp:
 
                 self.batch.append(r)
                 n        = len(self.batch)
-                mode_tag = "" if use_hw else "[SIM] "
+                if not use_hw:
+                    mode_tag = "[SIM] "          # semua sensor simulasi
+                elif self._any_sensor_float():
+                    mode_tag = "[MIX] "          # sebagian sensor floating
+                else:
+                    mode_tag = ""                # semua dari hardware
 
                 # Hitung nilai processed untuk ditampilkan di GUI
                 proc_ph, proc_tss, proc_debit, \
@@ -264,10 +269,16 @@ class SparingApp:
                 with self._last_r_lock:
                     last = self._last_r
 
+                # Sensor yang di-float pakai nilai dari `last` (sama dengan GUI),
+                # bukan baca hardware lagi — agar tampilan == data terkirim.
+                noise_hw   = use_hw and not self._sensor_is_float("noise")
+                dust_hw    = use_hw and not self._sensor_is_float("dust")
+                weather_hw = use_hw and not self._sensor_is_float("weather")
+
                 # Baca noise
                 if self.cfg.get("sensor_noise_enabled", True):
                     noise = (self.sensor_rdr.read_noise_safe()
-                             if use_hw
+                             if noise_hw
                              else round(random.uniform(
                                  self.cfg.get("sim_noise_min", 40.0),
                                  self.cfg.get("sim_noise_max", 80.0)), 1))
@@ -282,7 +293,7 @@ class SparingApp:
 
                 # Baca debu (PM)
                 if self.cfg.get("sensor_dust_enabled", True):
-                    if use_hw:
+                    if dust_hw:
                         pm25, pm10, tsp = self.sensor_rdr.read_dust_safe()
                     elif last is not None:
                         # Pakai nilai dari _simulate() yang sama dengan yang ditampilkan di GUI
@@ -302,7 +313,7 @@ class SparingApp:
 
                 # Baca cuaca (YGC-CSM)
                 if self.cfg.get("sensor_weather_enabled", True):
-                    if use_hw:
+                    if weather_hw:
                         ws, wd, at, rh, pr = self.sensor_rdr.read_weather_safe()
                     elif last is not None:
                         # Pakai nilai dari _simulate() yang sama dengan yang ditampilkan di GUI
@@ -784,6 +795,18 @@ class SparingApp:
             daemon=True,
             name="gap_fill",
         ).start()
+
+    # ── Floating per-sensor ──────────────────────────────────────────────────
+    _FLOAT_SENSORS = ("ph", "tss", "debit", "dust", "noise", "temp", "weather")
+
+    def _sensor_is_float(self, name: str) -> bool:
+        """True bila sensor ini floating — global atau per-sensor."""
+        return bool(self.cfg.get("simulate_sensors") or
+                    self.cfg.get(f"float_{name}", False))
+
+    def _any_sensor_float(self) -> bool:
+        """True bila minimal satu sensor di-set floating per-sensor (bukan global)."""
+        return any(self.cfg.get(f"float_{s}", False) for s in self._FLOAT_SENSORS)
 
     def set_operation_mode(self, mode: str) -> None:
         """Set mode operasi sesuai SK 3441/2025 Pasal 6.2.6.6g.

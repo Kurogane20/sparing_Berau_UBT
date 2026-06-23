@@ -84,6 +84,18 @@ DEFAULT_CONFIG: dict = {
     "sensor_noise_enabled":   True,   # Kebisingan dB (Sound Level Meter)
     "sensor_temp_enabled":    True,   # Suhu air (°C)
     "sensor_weather_enabled": True,   # YGC-CSM: angin, suhu udara, RH, tekanan
+
+    # Floating per-sensor — True = sensor ini pakai data simulasi MESKI RS485 aktif.
+    # Berguna saat sebagian sensor belum terpasang/rusak tapi sistem harus tetap jalan.
+    # Floating Mode global (simulate_sensors) tetap memaksa SEMUA sensor floating.
+    "float_ph":               False,
+    "float_tss":              False,
+    "float_debit":            False,
+    "float_dust":             False,   # PM2.5/PM10/PM100
+    "float_noise":            False,
+    "float_temp":             False,
+    "float_weather":          False,
+
     "offset_ph":              0.0,
     "offset_tss":             0.0,
     "offset_debit":           0.0,
