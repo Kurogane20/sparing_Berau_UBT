@@ -299,7 +299,7 @@ class SparingGUI:
             # cfg_key                  key     label    unit    bg           label_color
             ("sensor_ph_enabled",    "ph",    "pH",    "",     C["s_ph"],    "#A8CCFF"),
             ("sensor_tss_enabled",   "tss",   "TSS",   "mg/L", C["s_tss"],   "#A0D8F0"),
-            ("sensor_debit_enabled", "debit", "DEBIT", "m³/s", C["s_debit"], "#9AECD8"),
+            ("sensor_debit_enabled", "debit", "DEBIT", "m³/menit", C["s_debit"], "#9AECD8"),
         ]
         for col, (cfg_key, key, label, unit, bg, lc) in enumerate(defs):
             card = self._sensor_card(row, key, label, unit, bg, lc)
@@ -782,7 +782,7 @@ class SparingGUI:
         water_sensors = [
             ("sensor_ph_enabled",    "ph",    "pH",    "",     C["s_ph"],    "#A8CCFF"),
             ("sensor_tss_enabled",   "tss",   "TSS",   "mg/L", C["s_tss"],   "#A0D8F0"),
-            ("sensor_debit_enabled", "debit", "DEBIT", "m³/s", C["s_debit"], "#9AECD8"),
+            ("sensor_debit_enabled", "debit", "DEBIT", "m³/menit", C["s_debit"], "#9AECD8"),
         ]
         for col, (cfg_key, key, label, unit, bg, lc) in enumerate(water_sensors):
             card = _value_card(key, label, unit, bg, lc, row=0, col=col)
@@ -1586,7 +1586,7 @@ class SparingGUI:
         sensors = [
             ("sensor_ph_enabled",    "pH",              C["s_ph"],    "#A8CCFF"),
             ("sensor_tss_enabled",   "TSS (mg/L)",      C["s_tss"],   "#A0D8F0"),
-            ("sensor_debit_enabled", "Debit (m³/s)",    C["s_debit"], "#9AECD8"),
+            ("sensor_debit_enabled", "Debit (m³/menit)", C["s_debit"], "#9AECD8"),
             ("sensor_dust_enabled",  "Debu — PM2.5 / PM10 / PM100 (RK300-02)",
              "#37474F", "#90A4AE"),
             ("sensor_noise_enabled", "Kebisingan — Noise dB (Sound Level Meter)",
@@ -1698,7 +1698,7 @@ class SparingGUI:
         sensors = [
             ("float_ph",      "pH",              C["s_ph"],    "#A8CCFF"),
             ("float_tss",     "TSS (mg/L)",      C["s_tss"],   "#A0D8F0"),
-            ("float_debit",   "Debit (m³/s)",    C["s_debit"], "#9AECD8"),
+            ("float_debit",   "Debit (m³/menit)", C["s_debit"], "#9AECD8"),
             ("float_dust",    "Debu — PM2.5 / PM10 / PM100 (RK300-02)",
              "#37474F", "#90A4AE"),
             ("float_noise",   "Kebisingan — Noise dB (Sound Level Meter)",

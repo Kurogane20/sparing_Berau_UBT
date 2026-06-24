@@ -172,7 +172,7 @@ class SparingApp:
                 self._log(
                     f"{mode_tag}Data {n}/{batch_size} — "
                     f"pH={r.ph:.2f}  TSS={r.tss:.2f} mg/L  "
-                    f"Debit={r.debit:.2f} m³/s  "
+                    f"Debit={r.debit:.2f} m³/menit  "
                     f"PM2.5={r.pm25:.1f}  PM10={r.pm10:.1f}  PM100={r.pm100:.1f} ug/m³  "
                     f"Leq={r.noise:.1f} dB  Temp={r.temp:.1f}°C"
                 )

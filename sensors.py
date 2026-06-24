@@ -276,7 +276,7 @@ class SensorReader:
         """
         Slave ID 1, holding register 0-29. Double ABCD dari reg[15-18].
         Datasheet flowmeter mengeluarkan nilai dalam m³/jam → dikonversi ke
-        m³/detik (÷3600) agar sesuai satuan yang ditampilkan di GUI.
+        m³/menit (÷60) agar sesuai satuan yang ditampilkan di GUI.
         """
         if self._is_float("debit") or self._mb is None:
             return self._sim_debit()
@@ -287,8 +287,8 @@ class SensorReader:
                               r.registers[17], r.registers[18])
                 combined = (a << 48) | (b << 32) | (c << 16) | d
                 debit_m3h = struct.unpack("d", struct.pack("Q", combined))[0]
-                debit = debit_m3h / 3600.0   # m³/jam → m³/detik (sesuai GUI)
-                return round(debit - self.cfg["offset_debit"], 6)
+                debit = debit_m3h / 60.0   # m³/jam → m³/menit (sesuai GUI)
+                return round(debit - self.cfg["offset_debit"], 4)
             else:
                 msg = f"[SENSOR] Debit isError: {r}"
                 log.error(msg)

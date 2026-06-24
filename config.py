@@ -123,8 +123,8 @@ DEFAULT_CONFIG: dict = {
     "sim_ph_max":             7.6,
     "sim_tss_min":            80.0,
     "sim_tss_max":            90.0,
-    "sim_debit_min":          0.01,
-    "sim_debit_max":          0.10,
+    "sim_debit_min":          0.60,   # m³/menit
+    "sim_debit_max":          6.00,   # m³/menit
     "sim_tsp_min":            30.0,
     "sim_tsp_max":            200.0,
     "sim_noise_min":          40.0,
@@ -168,7 +168,7 @@ DEFAULT_CONFIG: dict = {
     "limit_tss_float_hi_min":    495.0,
     "limit_tss_float_hi_max":    499.0,
     "limit_debit_min":           0.0,
-    "limit_debit_max":           100.0,   # m³/s
+    "limit_debit_max":           100.0,   # m³/menit
     "limit_debit_float_lo_min":  0.1,
     "limit_debit_float_lo_max":  1.0,
     "limit_debit_float_hi_min":  99.0,
