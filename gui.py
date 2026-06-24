@@ -1259,14 +1259,16 @@ class SparingGUI:
         tk.Frame(bar, bg=C["primary"],
                  width=self._sp(3)).pack(side="left", fill="y")
 
+        # Echo log terakhir — disembunyikan di layar kecil (hemat ruang;
+        # log lengkap tetap ada di panel LOG AKTIVITAS).
         self._statusbar_var = tk.StringVar(value="Siap")
-        tk.Label(bar, textvariable=self._statusbar_var,
+        self._statusbar_lbl = tk.Label(bar, textvariable=self._statusbar_var,
                  bg=C["panel"], fg=C["text_muted"],
-                 font=(_FONT_UI, self._fs(9))).pack(
-            side="left", padx=self._sp(10))
-
-        tk.Frame(bar, bg=C["border"],
-                 width=1).pack(side="left", fill="y", pady=self._sp(4))
+                 font=(_FONT_UI, self._fs(9)))
+        if not self._small:
+            self._statusbar_lbl.pack(side="left", padx=self._sp(10))
+            tk.Frame(bar, bg=C["border"],
+                     width=1).pack(side="left", fill="y", pady=self._sp(4))
 
         # Status Operasi — selalu terlihat, tanpa perlu unlock (SK 3441 §6.2.6.6g)
         _op_defs = [
@@ -1294,15 +1296,17 @@ class SparingGUI:
         tk.Frame(bar, bg=C["border"],
                  width=1).pack(side="left", fill="y", pady=self._sp(4))
 
-        # Indikator resource sistem (diisi oleh _sysmon_loop via update_sysmon)
+        # Indikator resource sistem (diisi oleh _sysmon_loop via update_sysmon).
+        # Layar kecil → format ringkas (tanpa label CPU/RAM/Disk panjang).
         if self.cfg.get("sysmon_enabled", True):
             self._sys_var = tk.StringVar(
-                value="CPU —  ·  — °C  ·  RAM —  ·  Disk —")
+                value="— °C  ·  — %  ·  — %" if self._small
+                      else "CPU —  ·  — °C  ·  RAM —  ·  Disk —")
             self._sys_lbl = tk.Label(
                 bar, textvariable=self._sys_var,
                 bg=C["panel"], fg=C["text_muted"],
                 font=(_FONT_MONO, self._fs(8)))
-            self._sys_lbl.pack(side="left", padx=self._sp(10))
+            self._sys_lbl.pack(side="left", padx=self._sp(6 if self._small else 10))
 
         # Tombol rahasia (kunci) — di-pack PERTAMA agar selalu di pojok kanan
         # dan tak pernah terdorong keluar saat footer sempit.
@@ -1324,15 +1328,17 @@ class SparingGUI:
                        C["bg"], C["accent"],
                        pady=0).pack(side="right", padx=(0, self._sp(2)), pady=3)
 
+        # Label mode/port — info tambahan, disembunyikan di layar kecil
         is_test = self.cfg.get("simulate_sensors", False)
         port = self.cfg.get("serial_port", "—")
         self._mode_label_var = tk.StringVar(
             value=f"Mode: {'FLOAT' if is_test else 'LIVE'}  ·  {port}")
-        tk.Label(bar,
+        self._mode_label_lbl = tk.Label(bar,
                  textvariable=self._mode_label_var,
                  bg=C["panel"], fg=C["text_muted"],
-                 font=(_FONT_UI, self._fs(8))).pack(
-            side="right", padx=self._sp(8))
+                 font=(_FONT_UI, self._fs(8)))
+        if not self._small:
+            self._mode_label_lbl.pack(side="right", padx=self._sp(8))
 
     # ═══════════════════════════════════════════════════════════════════════════
     # WIDGET HELPERS
@@ -2167,9 +2173,14 @@ class SparingGUI:
             return
         def f(v, suf=""):
             return f"{v}{suf}" if v is not None else "—"
-        self._sys_var.set(
-            f"CPU {f(cpu, '%')}  ·  {f(temp, '°C')}  ·  "
-            f"RAM {f(mem, '%')}  ·  Disk {f(disk, '%')}")
+        if self._small:
+            # Ringkas: suhu (paling penting) · RAM · Disk — tanpa CPU & label panjang
+            self._sys_var.set(
+                f"{f(temp, '°C')}  ·  {f(mem, '%')}  ·  {f(disk, '%')}")
+        else:
+            self._sys_var.set(
+                f"CPU {f(cpu, '%')}  ·  {f(temp, '°C')}  ·  "
+                f"RAM {f(mem, '%')}  ·  Disk {f(disk, '%')}")
         color = {"ok":   C["text_muted"],
                  "warn": C["warning"],
                  "crit": C["offline"]}.get(severity, C["text_muted"])
