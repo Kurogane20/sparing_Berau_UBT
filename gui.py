@@ -2017,8 +2017,69 @@ class SparingGUI:
 
     # ── Status Operasi helpers ────────────────────────────────────────────────
     def _on_set_op_mode(self, mode: str) -> None:
-        """Tombol status operasi diklik."""
-        self.app.set_operation_mode(mode)
+        """
+        Tombol status operasi diklik.
+        Hanya boleh diubah oleh yang punya PIN (SK 3441 §6.2.6.6g — status
+        operasi memengaruhi data yang dikirim ke server, jadi diproteksi).
+        Jika dashboard sudah ter-unlock → langsung ganti.
+        Jika terkunci → minta PIN dulu (tanpa membuka seluruh dashboard).
+        """
+        if self._unlocked:
+            self.app.set_operation_mode(mode)
+            return
+        _labels = {"normal": "Normal", "stopped": "−1 Berhenti",
+                   "calibrating": "−2 Kalibrasi", "malfunction": "−3 Gangguan"}
+        self._prompt_pin(
+            lambda: self.app.set_operation_mode(mode),
+            subtitle=f"Ubah status operasi → {_labels.get(mode, mode)}")
+
+    def _prompt_pin(self, on_ok, subtitle: str = "") -> None:
+        """
+        Dialog PIN untuk satu aksi terproteksi (mis. ubah status operasi).
+        Memanggil on_ok() bila PIN benar — TANPA membuka dashboard penuh.
+        """
+        win = self._make_dialog(self._sp(300), self._sp(210))
+        win.configure(bg=C["panel"])
+        tk.Frame(win, bg=C["primary"], height=self._sp(4)).pack(fill="x")
+
+        tk.Label(win, text="Masukkan PIN",
+                 bg=C["panel"], fg=C["text"],
+                 font=(_FONT_UI, self._fs(11), "bold")).pack(
+            pady=(self._sp(14), self._sp(6)))
+        tk.Label(win, text=subtitle or "Diperlukan untuk mengubah pengaturan",
+                 bg=C["panel"], fg=C["text_muted"],
+                 font=(_FONT_UI, self._fs(8))).pack(pady=(0, self._sp(10)))
+
+        pin_var = tk.StringVar()
+        entry = tk.Entry(win, textvariable=pin_var, show="●",
+                         font=(_FONT_MONO, self._fs(16)), width=10,
+                         justify="center", relief="flat", bd=0,
+                         bg=C["bg"], fg=C["text"],
+                         insertbackground=C["primary"], highlightthickness=2,
+                         highlightbackground=C["border"], highlightcolor=C["primary"])
+        entry.pack(ipady=self._sp(6))
+        entry.focus_set()
+
+        err_var = tk.StringVar(value="")
+        tk.Label(win, textvariable=err_var, bg=C["panel"], fg=C["offline"],
+                 font=(_FONT_UI, self._fs(9))).pack(pady=(self._sp(4), 0))
+
+        def _ok(event=None):
+            if pin_var.get() == str(self.cfg.get("secret_pin", "1234")):
+                win.destroy()
+                on_ok()
+            else:
+                err_var.set("PIN salah, coba lagi")
+                pin_var.set("")
+        entry.bind("<Return>", _ok)
+
+        btn_row = tk.Frame(win, bg=C["panel"])
+        btn_row.pack(pady=(self._sp(8), 0))
+        self._flat_btn(btn_row, "OK", _ok, C["primary"], "white",
+                       pady=6).pack(side="left", padx=(0, self._sp(6)),
+                                    ipadx=self._sp(12))
+        self._flat_btn(btn_row, "Batal", win.destroy, C["bg"], C["text_muted"],
+                       pady=6).pack(side="left", ipadx=self._sp(12))
 
     def update_op_mode_btn(self, mode: str) -> None:
         """Perbarui tampilan tombol status operasi (dipanggil dari main thread)."""

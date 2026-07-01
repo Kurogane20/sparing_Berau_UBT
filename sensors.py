@@ -314,57 +314,109 @@ class SensorReader:
         pm10 = round(f10 * pm100, 1)
         return pm25, pm10
 
+    # ── Debu / Kualitas Udara (YGC-BYX-M Louvered Multi-Function Sensor) ───────
     def _read_dust(self) -> tuple:
         """
-        Slave ID = slave_id_dust (default 3).
-        Register 0x0001, count 3:
-          reg[0] = PM2.5  (tidak dipakai — dihitung dari TSP)
-          reg[1] = PM10   (tidak dipakai — dihitung dari TSP)
-          reg[2] = PM100/TSP (ug/m³) — nilai utama
-
-        PM2.5 = pm25_factor × TSP
-        PM10  = pm10_factor × TSP
+        YGC-BYX-M — slave = slave_id_dust (alamat sensor udara, default 3).
+        PM diukur LANGSUNG dalam ug/m³ (tidak lagi dihitung dari TSP):
+          reg 0x0008 = PM2.5       (signed, ug/m³)
+          reg 0x0009 = PM10        (signed, ug/m³)
+          reg 0x000A = PM100/TSP   (signed, ug/m³)
+        0x7FFF = tidak terhubung → 0.
         """
         if self._is_float("dust") or self._mb is None:
             return self._sim_dust()
         try:
-            r = self._rhr(1, 3, self.cfg["slave_id_dust"])
+            r = self._rhr(0x0008, 3, self.cfg["slave_id_dust"])
             if not r.isError():
-                pm100 = round(r.registers[1] + self.cfg["offset_pm100"], 1)
-                pm25, pm10 = self._calc_pm_from_tsp(pm100)
+                def _v(idx):
+                    val = r.registers[idx]
+                    return 0.0 if val == 0x7FFF else float(self._to_signed16(val))
+                pm25  = round(_v(0), 1)
+                pm10  = round(_v(1), 1)
+                pm100 = round(_v(2) + self.cfg.get("offset_pm100", 0.0), 1)
                 return pm25, pm10, pm100
             else:
-                msg = f"[SENSOR] Debu isError: {r}"
+                msg = f"[SENSOR] Debu(BYX-M) isError: {r}"
                 log.error(msg)
                 self._on_error(msg)
         except Exception as e:
-            log.error(f"Baca Debu gagal: {e}")
-            self._on_error(f"[SENSOR] Baca Debu gagal: {e}")
+            log.error(f"Baca Debu(BYX-M) gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Debu(BYX-M) gagal: {e}")
         return (0.0, 0.0, 0.0)
 
-    # ── Noise (Sound Level Meter) ─────────────────────────────────────────────
+    # ── [KODE LAMA] Sensor debu RK300-02 (diganti YGC-BYX-M) — jangan dihapus ──
+    # def _read_dust(self) -> tuple:
+    #     """
+    #     Slave ID = slave_id_dust (default 3).
+    #     Register 0x0001, count 3:
+    #       reg[0] = PM2.5  (tidak dipakai — dihitung dari TSP)
+    #       reg[1] = PM10   (tidak dipakai — dihitung dari TSP)
+    #       reg[2] = PM100/TSP (ug/m³) — nilai utama
+    #     PM2.5 = pm25_factor × TSP;  PM10 = pm10_factor × TSP
+    #     """
+    #     if self._is_float("dust") or self._mb is None:
+    #         return self._sim_dust()
+    #     try:
+    #         r = self._rhr(1, 3, self.cfg["slave_id_dust"])
+    #         if not r.isError():
+    #             pm100 = round(r.registers[1] + self.cfg["offset_pm100"], 1)
+    #             pm25, pm10 = self._calc_pm_from_tsp(pm100)
+    #             return pm25, pm10, pm100
+    #         else:
+    #             msg = f"[SENSOR] Debu isError: {r}"
+    #             log.error(msg)
+    #             self._on_error(msg)
+    #     except Exception as e:
+    #         log.error(f"Baca Debu gagal: {e}")
+    #         self._on_error(f"[SENSOR] Baca Debu gagal: {e}")
+    #     return (0.0, 0.0, 0.0)
+
+    # ── Noise (YGC-BYX-M, register 0x0007) ────────────────────────────────────
     def _read_noise(self) -> float:
         """
-        Slave ID = slave_id_noise (default 4).
-        Register address=0, count=1:
-          reg[0] / 10 = noise level (dB)
+        YGC-BYX-M — noise di register 0x0007, signed, nilai/10 = dB(A).
+        Slave SAMA dengan sensor udara (slave_id_dust) — bukan sensor terpisah.
+        0x7FFF = tidak terhubung → 0.
         """
         if self._is_float("noise") or self._mb is None:
             return self._sim_noise()
         try:
-            r = self._rhr(0, 1, self.cfg["slave_id_noise"])
+            r = self._rhr(0x0007, 1, self.cfg["slave_id_dust"])
             if not r.isError():
-                raw   = r.registers[0]
-                noise = round(raw / 10 + self.cfg.get("offset_noise", 0.0), 1)
-                return noise
+                raw = r.registers[0]
+                if raw == 0x7FFF:
+                    return 0.0
+                return round(self._to_signed16(raw) / 10.0
+                             + self.cfg.get("offset_noise", 0.0), 1)
             else:
-                msg = f"[SENSOR] Noise isError: {r}"
+                msg = f"[SENSOR] Noise(BYX-M) isError: {r}"
                 log.error(msg)
                 self._on_error(msg)
         except Exception as e:
-            log.error(f"Baca Noise gagal: {e}")
-            self._on_error(f"[SENSOR] Baca Noise gagal: {e}")
+            log.error(f"Baca Noise(BYX-M) gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Noise(BYX-M) gagal: {e}")
         return 0.0
+
+    # ── [KODE LAMA] Noise Sound Level Meter (slave_id_noise=4) — jangan dihapus ─
+    # def _read_noise(self) -> float:
+    #     """Slave ID = slave_id_noise (default 4). reg[0]/10 = dB."""
+    #     if self._is_float("noise") or self._mb is None:
+    #         return self._sim_noise()
+    #     try:
+    #         r = self._rhr(0, 1, self.cfg["slave_id_noise"])
+    #         if not r.isError():
+    #             raw   = r.registers[0]
+    #             noise = round(raw / 10 + self.cfg.get("offset_noise", 0.0), 1)
+    #             return noise
+    #         else:
+    #             msg = f"[SENSOR] Noise isError: {r}"
+    #             log.error(msg)
+    #             self._on_error(msg)
+    #     except Exception as e:
+    #         log.error(f"Baca Noise gagal: {e}")
+    #         self._on_error(f"[SENSOR] Baca Noise gagal: {e}")
+    #     return 0.0
 
     def read_noise_safe(self) -> float:
         """Baca noise dengan lock — aman dipanggil dari thread terpisah."""
