@@ -38,11 +38,6 @@ class SensorReader:
         self._port_ok  = False
         self._on_error = on_error or (lambda msg: None)
         self._lock     = threading.Lock()   # proteksi akses Modbus antar-thread
-        # Cache pembacaan udara (YGC-BYX-M) — noise+PM dibaca 1 transaksi, dipakai
-        # bersama oleh _read_noise & _read_dust agar tak ada 2 frame ke perangkat
-        # sama dalam <500ms (aturan jeda antar-frame di datasheet).
-        self._air_cache    = None
-        self._air_cache_ts = 0.0
         self._connect()
 
     # ── Koneksi Modbus ────────────────────────────────────────────────────────
@@ -319,46 +314,30 @@ class SensorReader:
         pm10 = round(f10 * pm100, 1)
         return pm25, pm10
 
-    # ── Kualitas Udara (YGC-BYX-M Louvered Multi-Function Sensor) ─────────────
-    def _read_air(self) -> tuple:
-        """
-        Baca YGC-BYX-M dalam SATU transaksi Modbus (slave = slave_id_dust):
-          reg 0x0007 = Noise       (signed, ÷10 = dB(A))
-          reg 0x0008 = PM2.5       (signed, ug/m³)
-          reg 0x0009 = PM10        (signed, ug/m³)
-          reg 0x000A = PM100/TSP   (signed, ug/m³)
-        Kembalikan (noise, pm25, pm10, pm100). 0x7FFF = tidak terhubung → 0.
-        Satu frame → tidak melanggar aturan jeda 500ms antar-frame ke sensor sama.
-        """
-        r = self._rhr(0x0007, 4, self.cfg["slave_id_dust"])
-        if r.isError():
-            raise IOError(f"isError: {r}")
-        regs = r.registers
-        def _v(idx):
-            val = regs[idx]
-            return None if val == 0x7FFF else self._to_signed16(val)
-        n     = _v(0)
-        noise = round(n / 10.0 + self.cfg.get("offset_noise", 0.0), 1) if n is not None else 0.0
-        pm25  = round(float(_v(1) or 0.0), 1)
-        pm10  = round(float(_v(2) or 0.0), 1)
-        pm100 = round(float(_v(3) or 0.0) + self.cfg.get("offset_pm100", 0.0), 1)
-        return noise, pm25, pm10, pm100
-
-    def _read_air_cached(self) -> tuple:
-        """Ambil pembacaan udara dari cache; baca ulang jika cache > 1 detik."""
-        now = time.time()
-        if self._air_cache is None or (now - self._air_cache_ts) > 1.0:
-            self._air_cache    = self._read_air()
-            self._air_cache_ts = now
-        return self._air_cache
-
+    # ── Debu / PM (YGC-BYX-M Louvered Multi-Function Sensor, slave_id_dust) ────
     def _read_dust(self) -> tuple:
-        """PM2.5/PM10/PM100 dari YGC-BYX-M (via cache 1-transaksi bersama noise)."""
+        """
+        YGC-BYX-M — slave = slave_id_dust (default 3). PM langsung dalam ug/m³:
+          reg 0x0008 = PM2.5   reg 0x0009 = PM10   reg 0x000A = PM100/TSP
+        0x7FFF = tidak terhubung → 0.
+        (Noise TIDAK di sini — dibaca dari sensor terpisah YGC-ZS, lihat _read_noise.)
+        """
         if self._is_float("dust") or self._mb is None:
             return self._sim_dust()
         try:
-            _noise, pm25, pm10, pm100 = self._read_air_cached()
-            return pm25, pm10, pm100
+            r = self._rhr(0x0008, 3, self.cfg["slave_id_dust"])
+            if not r.isError():
+                def _v(idx):
+                    val = r.registers[idx]
+                    return 0.0 if val == 0x7FFF else float(self._to_signed16(val))
+                pm25  = round(_v(0), 1)
+                pm10  = round(_v(1), 1)
+                pm100 = round(_v(2) + self.cfg.get("offset_pm100", 0.0), 1)
+                return pm25, pm10, pm100
+            else:
+                msg = f"[SENSOR] Debu(BYX-M) isError: {r}"
+                log.error(msg)
+                self._on_error(msg)
         except Exception as e:
             log.error(f"Baca Debu(BYX-M) gagal: {e}")
             self._on_error(f"[SENSOR] Baca Debu(BYX-M) gagal: {e}")
@@ -391,16 +370,30 @@ class SensorReader:
     #         self._on_error(f"[SENSOR] Baca Debu gagal: {e}")
     #     return (0.0, 0.0, 0.0)
 
-    # ── Noise (YGC-BYX-M, register 0x0007 — via cache bersama PM) ─────────────
+    # ── Noise (YGC-ZS Noise Sensor — sensor TERPISAH, slave_id_noise) ─────────
     def _read_noise(self) -> float:
-        """Noise dari YGC-BYX-M (register 0x0007, ÷10 dB), via cache 1-transaksi."""
+        """
+        YGC-ZS Noise Sensor — slave = slave_id_noise (default 4), sensor terpisah.
+        Register 0x0000, count 1, nilai/10 = dB(A). Range 30~130 dB.
+        Contoh datasheet: 0x01D1 = 465 → 46.5 dB. 0x7FFF = tidak terhubung → 0.
+        """
         if self._is_float("noise") or self._mb is None:
             return self._sim_noise()
         try:
-            return self._read_air_cached()[0]
+            r = self._rhr(0x0000, 1, self.cfg["slave_id_noise"])
+            if not r.isError():
+                raw = r.registers[0]
+                if raw == 0x7FFF:
+                    return 0.0
+                return round(self._to_signed16(raw) / 10.0
+                             + self.cfg.get("offset_noise", 0.0), 1)
+            else:
+                msg = f"[SENSOR] Noise(YGC-ZS) isError: {r}"
+                log.error(msg)
+                self._on_error(msg)
         except Exception as e:
-            log.error(f"Baca Noise(BYX-M) gagal: {e}")
-            self._on_error(f"[SENSOR] Baca Noise(BYX-M) gagal: {e}")
+            log.error(f"Baca Noise(YGC-ZS) gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Noise(YGC-ZS) gagal: {e}")
         return 0.0
 
     # ── [KODE LAMA] Noise Sound Level Meter (slave_id_noise=4) — jangan dihapus ─
