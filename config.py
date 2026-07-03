@@ -115,6 +115,11 @@ DEFAULT_CONFIG: dict = {
     "pm10_factor_min":        0.3,
     "pm10_factor_max":        0.4,
 
+    # Tipe sensor debu/PM yang dipakai untuk pembacaan hardware:
+    #   "byx-m" → YGC-BYX-M (PM2.5/PM10/TSP diukur langsung, reg 0x0008-0x000A)
+    #   "rk300" → RK300-02  (PM2.5/PM10 dihitung dari TSP × faktor, reg 0x0001)
+    "dust_sensor_type":       "byx-m",
+
     # Floating Mode (tanpa hardware) — aktif otomatis jika pymodbus tidak tersedia
     "simulate_sensors":       not HAS_MODBUS,
 

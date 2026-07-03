@@ -314,16 +314,27 @@ class SensorReader:
         pm10 = round(f10 * pm100, 1)
         return pm25, pm10
 
-    # ── Debu / PM (YGC-BYX-M Louvered Multi-Function Sensor, slave_id_dust) ────
+    # ── Debu / PM — tipe sensor dapat dipilih (dust_sensor_type) ──────────────
     def _read_dust(self) -> tuple:
         """
-        YGC-BYX-M — slave = slave_id_dust (default 3). PM langsung dalam ug/m³:
+        Dispatcher pembacaan debu. Tipe sensor dipilih via config:
+          dust_sensor_type = "byx-m" → YGC-BYX-M (PM diukur langsung)  [default]
+          dust_sensor_type = "rk300" → RK300-02 (PM2.5/PM10 dihitung dari TSP)
+        """
+        if self._is_float("dust") or self._mb is None:
+            return self._sim_dust()
+        if self.cfg.get("dust_sensor_type", "byx-m") == "rk300":
+            return self._read_dust_rk300()
+        return self._read_dust_byxm()
+
+    def _read_dust_byxm(self) -> tuple:
+        """
+        [TIPE BARU] YGC-BYX-M — slave = slave_id_dust (default 3).
+        PM langsung dalam ug/m³:
           reg 0x0008 = PM2.5   reg 0x0009 = PM10   reg 0x000A = PM100/TSP
         0x7FFF = tidak terhubung → 0.
         (Noise TIDAK di sini — dibaca dari sensor terpisah YGC-ZS, lihat _read_noise.)
         """
-        if self._is_float("dust") or self._mb is None:
-            return self._sim_dust()
         try:
             r = self._rhr(0x0008, 3, self.cfg["slave_id_dust"])
             if not r.isError():
@@ -343,32 +354,26 @@ class SensorReader:
             self._on_error(f"[SENSOR] Baca Debu(BYX-M) gagal: {e}")
         return (0.0, 0.0, 0.0)
 
-    # ── [KODE LAMA] Sensor debu RK300-02 (diganti YGC-BYX-M) — jangan dihapus ──
-    # def _read_dust(self) -> tuple:
-    #     """
-    #     Slave ID = slave_id_dust (default 3).
-    #     Register 0x0001, count 3:
-    #       reg[0] = PM2.5  (tidak dipakai — dihitung dari TSP)
-    #       reg[1] = PM10   (tidak dipakai — dihitung dari TSP)
-    #       reg[2] = PM100/TSP (ug/m³) — nilai utama
-    #     PM2.5 = pm25_factor × TSP;  PM10 = pm10_factor × TSP
-    #     """
-    #     if self._is_float("dust") or self._mb is None:
-    #         return self._sim_dust()
-    #     try:
-    #         r = self._rhr(1, 3, self.cfg["slave_id_dust"])
-    #         if not r.isError():
-    #             pm100 = round(r.registers[1] + self.cfg["offset_pm100"], 1)
-    #             pm25, pm10 = self._calc_pm_from_tsp(pm100)
-    #             return pm25, pm10, pm100
-    #         else:
-    #             msg = f"[SENSOR] Debu isError: {r}"
-    #             log.error(msg)
-    #             self._on_error(msg)
-    #     except Exception as e:
-    #         log.error(f"Baca Debu gagal: {e}")
-    #         self._on_error(f"[SENSOR] Baca Debu gagal: {e}")
-    #     return (0.0, 0.0, 0.0)
+    def _read_dust_rk300(self) -> tuple:
+        """
+        [TIPE LAMA] Sensor debu RK300-02 — slave = slave_id_dust (default 3).
+        Register 0x0001, count 3: reg[1] = TSP (PM100). PM2.5/PM10 dihitung dari
+        TSP × faktor (pm25_factor / pm10_factor).
+        """
+        try:
+            r = self._rhr(1, 3, self.cfg["slave_id_dust"])
+            if not r.isError():
+                pm100 = round(r.registers[1] + self.cfg.get("offset_pm100", 0.0), 1)
+                pm25, pm10 = self._calc_pm_from_tsp(pm100)
+                return pm25, pm10, pm100
+            else:
+                msg = f"[SENSOR] Debu(RK300) isError: {r}"
+                log.error(msg)
+                self._on_error(msg)
+        except Exception as e:
+            log.error(f"Baca Debu(RK300) gagal: {e}")
+            self._on_error(f"[SENSOR] Baca Debu(RK300) gagal: {e}")
+        return (0.0, 0.0, 0.0)
 
     # ── Noise (YGC-ZS Noise Sensor — sensor TERPISAH, slave_id_noise) ─────────
     def _read_noise(self) -> float:

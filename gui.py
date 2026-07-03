@@ -2587,6 +2587,28 @@ class SparingGUI:
         ]:
             _entry(label, key, 8)
 
+        # Tipe sensor debu/PM — bisa pilih baru (YGC-BYX-M) atau lama (RK300-02)
+        _section("TIPE SENSOR DEBU / PM")
+        dust_type_var = tk.StringVar(
+            value=self.cfg.get("dust_sensor_type", "byx-m"))
+        dust_type_frame = tk.Frame(form, bg=C["bg"])
+        dust_type_frame.grid(row=row_i[0], column=0, columnspan=3,
+                             sticky="w", pady=(0, self._sp(6)))
+        tk.Radiobutton(dust_type_frame,
+                       text="YGC-BYX-M  (baru — PM2.5/PM10/TSP diukur langsung)",
+                       variable=dust_type_var, value="byx-m",
+                       bg=C["bg"], fg=C["text"], selectcolor=C["card"],
+                       activebackground=C["bg"],
+                       font=(_FONT_UI, self._fs(9))).pack(anchor="w")
+        tk.Radiobutton(dust_type_frame,
+                       text="RK300-02  (lama — PM2.5/PM10 dihitung dari TSP × faktor)",
+                       variable=dust_type_var, value="rk300",
+                       bg=C["bg"], fg=C["text"], selectcolor=C["card"],
+                       activebackground=C["bg"],
+                       font=(_FONT_UI, self._fs(9))).pack(anchor="w")
+        entry_vars["dust_sensor_type"] = dust_type_var
+        row_i[0] += 1
+
         # Faktor PM (hanya tampil jika sensor debu aktif)
         if self.cfg.get("sensor_dust_enabled", True):
             _section("FAKTOR PM DARI TSP")
