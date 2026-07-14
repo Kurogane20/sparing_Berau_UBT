@@ -548,7 +548,7 @@ class SparingGUI:
             ("wind_dir",   "ARAH ANGIN",      "°",    "#1565C0", "#64B5F6", "wind_dir_name"),
             ("air_temp",   "SUHU UDARA",      "°C",   "#E65100", "#FFCC80", None),
             ("humidity",   "KELEMBABAN",      "%RH",  "#00695C", "#80CBC4", None),
-            ("pressure",   "TEKANAN",         "hPa",  "#37474F", "#B0BEC5", None),
+            ("pressure",   "TEKANAN",         "mmHg", "#37474F", "#B0BEC5", None),
         ]
         for col, (key, label, unit, bg, lc, dir_key) in enumerate(defs):
             card = self._weather_card(row, key, label, unit, bg, lc, dir_key)
@@ -2213,7 +2213,8 @@ class SparingGUI:
         if "humidity" in self._sensor_vars:
             self._sensor_vars["humidity"].set(f"{humidity:.1f}")
         if "pressure" in self._sensor_vars:
-            self._sensor_vars["pressure"].set(f"{pressure:.1f}")
+            # Sensor baca hPa → tampilkan mmHg (×0.750062) agar konsisten dg data terkirim
+            self._sensor_vars["pressure"].set(f"{pressure * 0.750062:.1f}")
 
     def update_count(self, n: int, total: int = 30) -> None:
         self._count_var.set(f"{n} / {total}")
