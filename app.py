@@ -186,8 +186,9 @@ class SparingApp:
 
                 # Server 1: kualitas air (pH, TSS, Debit) — per 2 menit
                 self._send_s1_water(r)
-                # Server 1: data cuaca YGC-CSM — per 2 menit
-                self._send_s1_weather(r)
+                # Cuaca TIDAK dikirim terpisah lagi — sudah digabung ke pengiriman
+                # udara (_send_s1_env) yang jalan per menit di _noise_loop.
+                # (dulu: self._send_s1_weather(r) — menyebabkan baris ganda di DB)
 
                 # Server 2: kirim saat batch penuh (jika diaktifkan)
                 if n >= batch_size:

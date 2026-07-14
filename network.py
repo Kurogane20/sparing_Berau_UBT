@@ -322,7 +322,9 @@ class NetworkManager:
         #   uid, tl, datetime, pm2.5, pm10, tsp, noise, temp, mmhg, humidity.
         # tl WAJIB (dipakai server untuk cek duplikat: tipe_logger = tl).
         # Tekanan dikonversi hPa → mmHg (×0.750062; 1013.25 hPa = 760 mmHg).
-        # Angin dikirim TERPISAH via create_jwt_s1_weather (server udara abaikan angin).
+        # Cuaca (temp/humidity/mmhg + angin) DIGABUNG di payload udara ini — dikirim
+        # per menit bersama data udara, TIDAK lagi dikirim terpisah (hindari baris
+        # ganda di DB). Catatan: server udara belum menyimpan angin (tak ada kolomnya).
         tl = cfg.get("tl_klhk", 2) if processed else cfg.get("tl_water", 1)
         payload: dict = {
             "uid":      uid,
@@ -336,9 +338,11 @@ class NetworkManager:
         if noise_on:
             payload["noise"] = round(noise_v, 1)
         if weather_on:
-            payload["temp"]     = round(air_temp, 1)
-            payload["humidity"] = round(humidity, 1)
-            payload["mmhg"]     = round(pressure * 0.750062, 1)
+            payload["temp"]       = round(air_temp, 1)
+            payload["humidity"]   = round(humidity, 1)
+            payload["mmhg"]       = round(pressure * 0.750062, 1)
+            payload["wind_speed"] = round(wind_speed, 2)
+            payload["wind_dir"]   = int(wind_dir)
         if link_video_id:
             payload["link_video_id"] = link_video_id
         try:
@@ -422,6 +426,7 @@ class NetworkManager:
             payload["noise"] = v
         if weather_on:
             payload["temp"] = v; payload["humidity"] = v; payload["mmhg"] = v
+            payload["wind_speed"] = v; payload["wind_dir"] = v
         if link_video_id:
             payload["link_video_id"] = link_video_id
         try:
