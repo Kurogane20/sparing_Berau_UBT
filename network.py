@@ -318,23 +318,29 @@ class NetworkManager:
             pm25_v, pm10_v, tsp_v, noise_v = pm25, pm10, tsp, noise
             uid = cfg["uid1"]
 
-        # Field disesuaikan dengan skema Server 1 (Logger kualitas udara):
-        #   uid, pm_10, pm_25, tsp, noise, temp, mmhg, humidity,
-        #   datetime_unix, link_video_id.
+        # Field JWT sesuai yang DIBACA server (bukan nama kolom DB):
+        #   uid, tl, datetime, pm2.5, pm10, tsp, noise, temp, mmhg, humidity.
+        # tl WAJIB (dipakai server untuk cek duplikat: tipe_logger = tl).
         # Tekanan dikonversi hPa → mmHg (×0.750062; 1013.25 hPa = 760 mmHg).
-        # Angin (wind_speed/wind_dir) dikirim TERPISAH via create_jwt_s1_weather.
+        # Angin dikirim TERPISAH via create_jwt_s1_weather (server udara abaikan angin).
+        tl = cfg.get("tl_klhk", 2) if processed else cfg.get("tl_water", 1)
         payload: dict = {
-            "uid":           uid,
-            "pm_25":         round(pm25_v, 1),
-            "pm_10":         round(pm10_v, 1),
-            "tsp":           round(tsp_v,  1),
-            "noise":         round(noise_v, 1),
-            "temp":          round(air_temp, 1),
-            "mmhg":          round(pressure * 0.750062, 1),
-            "humidity":      round(humidity, 1),
-            "datetime_unix": int(timestamp),
-            "link_video_id": link_video_id or "",
+            "uid":      uid,
+            "tl":       tl,
+            "datetime": int(timestamp),
         }
+        if dust_on:
+            payload["pm2.5"] = round(pm25_v, 1)
+            payload["pm10"]  = round(pm10_v, 1)
+            payload["tsp"]   = round(tsp_v,  1)
+        if noise_on:
+            payload["noise"] = round(noise_v, 1)
+        if weather_on:
+            payload["temp"]     = round(air_temp, 1)
+            payload["humidity"] = round(humidity, 1)
+            payload["mmhg"]     = round(pressure * 0.750062, 1)
+        if link_video_id:
+            payload["link_video_id"] = link_video_id
         try:
             return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
         except Exception as e:
@@ -406,20 +412,18 @@ class NetworkManager:
         if not (dust_on or noise_on or weather_on):
             return ""
         uid = (cfg.get("uid1_klhk") or cfg["uid1"]) if processed else cfg["uid1"]
+        tl  = cfg.get("tl_klhk", 2) if processed else cfg.get("tl_water", 1)
         v   = status_code
         # Field sama dengan create_jwt_s1_env; semua nilai = kode status (-1/-2/-3).
-        payload: dict = {
-            "uid":           uid,
-            "pm_25":         v,
-            "pm_10":         v,
-            "tsp":           v,
-            "noise":         v,
-            "temp":          v,
-            "mmhg":          v,
-            "humidity":      v,
-            "datetime_unix": int(timestamp),
-            "link_video_id": link_video_id or "",
-        }
+        payload: dict = {"uid": uid, "tl": tl, "datetime": int(timestamp)}
+        if dust_on:
+            payload["pm2.5"] = v; payload["pm10"] = v; payload["tsp"] = v
+        if noise_on:
+            payload["noise"] = v
+        if weather_on:
+            payload["temp"] = v; payload["humidity"] = v; payload["mmhg"] = v
+        if link_video_id:
+            payload["link_video_id"] = link_video_id
         try:
             return pyjwt.encode(payload, self.secret_key1, algorithm="HS256")
         except Exception as e:
