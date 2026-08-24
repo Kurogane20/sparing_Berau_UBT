@@ -19,6 +19,12 @@ data_buffer*.json
 sparing.log
 *.log
 
+# Arsip SQLite + backup (jangan ikut ter-commit)
+data.db
+data.db-wal
+data.db-shm
+backups/
+
 # IDE / OS
 .vscode/
 .idea/
