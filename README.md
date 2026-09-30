@@ -164,9 +164,9 @@ Bisa juga dibuat manual sebelum menjalankan aplikasi.
   "slave_id_tss":           10,
   "slave_id_debit":         1,
 
-  "server_url1":            "https://sparing.mitramutiara.co.id/api/post-data",
-  "secret_key_url1":        "https://sparing.mitramutiara.co.id/api/get-key",
-  "uid1":                   "AGM03",
+  "server_url1":            "",
+  "secret_key_url1":        "",
+  "uid1":                   "",
 
   "server_url2":            "https://sparing.kemenlh.go.id/api/send-hourly",
   "secret_key_url2":        "https://sparing.kemenlh.go.id/api/secret-sensor",
