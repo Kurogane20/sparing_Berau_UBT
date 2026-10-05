@@ -19,7 +19,7 @@ from models      import SensorReading
 from sensors     import SensorReader
 from network     import NetworkManager
 from storage     import DataStorage
-from datastore   import DataStore
+from datastore   import DataStore, REJECTED
 from gui         import SparingGUI
 import gap_filler
 from sysmon      import SystemMonitor
@@ -460,53 +460,49 @@ class SparingApp:
 
         op = self._op_mode
         sc = {"stopped": -1, "calibrating": -2, "malfunction": -3}.get(op)
+        rid = getattr(r, "_rid", None)
         jwts = []
         if sc is not None:
             if int_on:
                 j = self.net.create_jwt1_water_status(sc, r.timestamp, processed=False)
-                if j: jwts.append(("Internal", sc, sc, sc, j))
+                if j: jwts.append(("Internal", "s1", sc, sc, sc, j))
             if klhk_on:
                 j = self.net.create_jwt1_water_status(sc, r.timestamp, processed=True)
-                if j: jwts.append(("KLHK", sc, sc, sc, j))
+                if j: jwts.append(("KLHK", "s1k", sc, sc, sc, j))
         else:
             if int_on:
                 j = self.net.create_jwt1_water(r, processed=False)
-                if j: jwts.append(("Internal", r.ph, r.tss, r.debit, j))
+                if j: jwts.append(("Internal", "s1", r.ph, r.tss, r.debit, j))
             if klhk_on:
                 j = self.net.create_jwt1_water(r, processed=True)
-                if j: jwts.append(("KLHK", proc_ph, proc_tss, proc_debit, j))
+                if j: jwts.append(("KLHK", "s1k", proc_ph, proc_tss, proc_debit, j))
+        # Logger yang dimatikan → tandai handled agar arsip tak menumpuk. Logger
+        # aktif yang JWT-nya kosong (key belum ada) TIDAK ditandai → resend.
+        self._mark_s1_disabled(self.store.mark_water_sent, rid, int_on, klhk_on)
         if not jwts:
-            # Tak ada logger aktif → tandai handled agar arsip tak menumpuk
-            # (kalau kosong karena key belum ada, int_on/klhk_on tetap True →
-            # jangan tandai; resend akan menanganinya).
-            if not int_on and not klhk_on:
-                self.store.mark_water_sent(getattr(r, "_rid", None), "s1")
             return
 
         online = self.net.check_internet()
         ok_any = False
-        ok_all = online                      # True hanya jika SEMUA tujuan sukses
-        for tag, ph_v, tss_v, debit_v, jwt in jwts:
-            if not online:
-                ok_all = False
-                continue                     # data aman di arsip → resend nanti
-            ok = self.net.post(self.cfg["server_url1"],
-                               json.dumps({"token": jwt}))
-            self.root.after(0, self.gui.update_connection, "server1", ok)
-            if ok:
-                ok_any = True
-                self._log(f"✓ [S1-W/{tag}] pH={ph_v}  TSS={tss_v}  Debit={debit_v:.2f}")
-            else:
-                ok_all = False
-                self._log(f"✗ [S1-W/{tag}] Gagal — akan dikirim ulang dari arsip")
+        for tag, dest, ph_v, tss_v, debit_v, jwt in jwts:
+            res = "fail"                     # offline → data aman di arsip → resend
+            if online:
+                res = self.net.post_result(self.cfg["server_url1"],
+                                           json.dumps({"token": jwt}))
+                self.root.after(0, self.gui.update_connection, "server1", res == "ok")
+                if res == "ok":
+                    ok_any = True
+                    self._log(f"✓ [S1-W/{tag}] pH={ph_v}  TSS={tss_v}  Debit={debit_v:.2f}")
+                elif res == "rejected":
+                    self._log(f"[WARN] ✗ [S1-W/{tag}] Ditolak server — tidak dikirim ulang")
+                else:
+                    self._log(f"✗ [S1-W/{tag}] Gagal — akan dikirim ulang dari arsip")
+            # Ditandai PER TUJUAN: kalau Internal sukses tapi KLHK gagal, hanya
+            # KLHK yang dikirim ulang (Internal tak dobel).
+            self._mark_result(self.store.mark_water_sent, rid, dest, res, sc)
         if ok_any:
             self.last_tx = r.timestamp
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
-        # Tandai "sudah ditangani" hanya jika SEMUA tujuan aktif sukses (kalau mis.
-        # KLHK gagal, biarkan unsent → resend kirim ulang semua varian), ATAU mode
-        # status (server terima kode -1/-2/-3; dikirim ulang tiap siklus).
-        if ok_all or sc is not None:
-            self.store.mark_water_sent(getattr(r, "_rid", None), "s1")
         self.root.after(0, self.gui.update_buffer, self._buffer_count())
 
     # NB: _send_s1_weather DIHAPUS — cuaca kini digabung ke _send_s1_env
@@ -546,10 +542,10 @@ class SparingApp:
         if sc is not None:
             if int_on:
                 j = self.net.create_jwt_s1_env_status(sc, timestamp, link_video_id, processed=False)
-                if j: jwts.append(("Internal", sc, sc, sc, sc, j))
+                if j: jwts.append(("Internal", "s1", sc, sc, sc, sc, j))
             if klhk_on:
                 j = self.net.create_jwt_s1_env_status(sc, timestamp, link_video_id, processed=True)
-                if j: jwts.append(("KLHK", sc, sc, sc, sc, j))
+                if j: jwts.append(("KLHK", "s1k", sc, sc, sc, sc, j))
         else:
             if int_on:
                 j = self.net.create_jwt_s1_env(
@@ -557,48 +553,60 @@ class SparingApp:
                     processed=False,
                     wind_speed=wind_speed, wind_dir=wind_dir,
                     air_temp=air_temp, humidity=humidity, pressure=pressure)
-                if j: jwts.append(("Internal", pm25, pm10, tsp, noise, j))
+                if j: jwts.append(("Internal", "s1", pm25, pm10, tsp, noise, j))
             if klhk_on:
                 j = self.net.create_jwt_s1_env(
                     pm25, pm10, tsp, noise, timestamp, link_video_id,
                     processed=True,
                     wind_speed=wind_speed, wind_dir=wind_dir,
                     air_temp=air_temp, humidity=humidity, pressure=pressure)
-                if j: jwts.append(("KLHK", pm25_p, pm10_p, tsp_p, noise_p, j))
+                if j: jwts.append(("KLHK", "s1k", pm25_p, pm10_p, tsp_p, noise_p, j))
+        # Logger yang dimatikan → data tak akan pernah dikirim ke sana; tandai
+        # handled agar arsip tak menumpuk. Logger aktif yang JWT-nya kosong
+        # (key belum ada) TIDAK ditandai → resend menanganinya saat key ada.
+        self._mark_s1_disabled(self.store.mark_air_sent, air_id, int_on, klhk_on)
         if not jwts:
-            # Tak ada logger aktif → data ini tak akan pernah dikirim; tandai
-            # "handled" agar arsip tak menumpuk. (Kalau jwts kosong karena key
-            # belum ada, int_on/klhk_on tetap True → JANGAN tandai; biar resend
-            # menanganinya saat key tersedia.)
-            if not int_on and not klhk_on:
-                self.store.mark_air_sent(air_id)
             return
 
         online = self.net.check_internet()
         ok_any = False
-        ok_all = online                      # True hanya jika SEMUA tujuan sukses
-        for tag, p25, p10, ptsp, pnoise, jwt in jwts:
-            if not online:
-                ok_all = False
-                continue                     # data aman di arsip → resend nanti
-            ok = self.net.post(self.cfg["server_url1"],
-                               json.dumps({"token": jwt}))
-            self.root.after(0, self.gui.update_connection, "server1", ok)
-            if ok:
-                ok_any = True
-                self._log(f"✓ [S1/{tag}] PM+Noise  "
-                          f"PM2.5={p25} PM10={p10} TSP={ptsp} Noise={pnoise} dB")
-            else:
-                ok_all = False
-                self._log(f"✗ [S1/{tag}] Gagal — akan dikirim ulang dari arsip")
+        for tag, dest, p25, p10, ptsp, pnoise, jwt in jwts:
+            res = "fail"                     # offline → data aman di arsip → resend
+            if online:
+                res = self.net.post_result(self.cfg["server_url1"],
+                                           json.dumps({"token": jwt}))
+                self.root.after(0, self.gui.update_connection, "server1", res == "ok")
+                if res == "ok":
+                    ok_any = True
+                    self._log(f"✓ [S1/{tag}] PM+Noise  "
+                              f"PM2.5={p25} PM10={p10} TSP={ptsp} Noise={pnoise} dB")
+                elif res == "rejected":
+                    self._log(f"[WARN] ✗ [S1/{tag}] Ditolak server — tidak dikirim ulang")
+                else:
+                    self._log(f"✗ [S1/{tag}] Gagal — akan dikirim ulang dari arsip")
+            self._mark_result(self.store.mark_air_sent, air_id, dest, res, sc)
         if ok_any:
             self.last_tx = timestamp
             self.root.after(0, self.gui.update_last_tx, self.last_tx)
-        # Tandai hanya jika SEMUA tujuan aktif sukses (kalau satu gagal, resend
-        # kirim ulang semua varian), ATAU mode status.
-        if ok_all or sc is not None:
-            self.store.mark_air_sent(air_id)
         self.root.after(0, self.gui.update_buffer, self._buffer_count())
+
+    # ── Penanda per tujuan S1 (Internal "s1" / KLHK "s1k") ──────────────────
+    @staticmethod
+    def _mark_s1_disabled(mark, rid, int_on: bool, klhk_on: bool) -> None:
+        """Logger S1 yang dimatikan tak akan pernah dikirimi → tandai handled."""
+        for dest, on in (("s1", int_on), ("s1k", klhk_on)):
+            if not on:
+                mark(rid, dest)
+
+    @staticmethod
+    def _mark_result(mark, rid, dest: str, res: str, status_code) -> None:
+        """Tandai satu tujuan sesuai hasil kirim. "fail" → biarkan 0 (resend),
+        kecuali mode status (-1/-2/-3): server terima kode status, nilai
+        mentahnya tak boleh di-backfill → selalu ditandai."""
+        if res == "ok" or status_code is not None:
+            mark(rid, dest)
+        elif res == "rejected":
+            mark(rid, dest, REJECTED)
 
     # ── Kirim batch 30 data ────────────────────────────────────────────────────
     # ── Kirim ke Server 2 — setiap batch penuh (30 data × 2 menit = 60 menit) ─
@@ -632,9 +640,10 @@ class SparingApp:
             self.root.after(0, self.gui.update_buffer, self._buffer_count())
             return
 
-        ok2 = self.net.post(self.cfg["server_url2"],
-                            json.dumps({"token": jwt2}))
-        now = time.time()
+        res2 = self.net.post_result(self.cfg["server_url2"],
+                                    json.dumps({"token": jwt2}))
+        ok2  = res2 == "ok"
+        now  = time.time()
 
         self.root.after(0, self.gui.update_connection, "server2", ok2)
         self.root.after(0, self.gui.update_send_status,
@@ -642,15 +651,15 @@ class SparingApp:
 
         if ok2:
             self._log(f"✓ [S2] Batch {len(batch)} data berhasil dikirim ke Server 2")
-            self.store.mark_water_sent(
-                [getattr(b, "_rid", None) for b in batch], "s2")
+        elif res2 == "rejected":
+            self._log(f"[WARN] ✗ [S2] Batch {len(batch)} data ditolak server — "
+                      f"tidak dikirim ulang (tetap tersimpan di data.db)")
         else:
             self._log(f"✗ [S2] Gagal — batch ditahan di arsip, kirim ulang otomatis")
         # Mode status: server terima kode -1/-2/-3, jangan pernah resend raw
         # untuk batch ini walau kirim gagal (arsip tetap simpan nilai aslinya).
-        if _sc is not None:
-            self.store.mark_water_sent(
-                [getattr(b, "_rid", None) for b in batch], "s2")
+        self._mark_result(self.store.mark_water_sent,
+                          [getattr(b, "_rid", None) for b in batch], "s2", res2, _sc)
 
         self.root.after(0, self.gui.update_buffer, self._buffer_count())
 
@@ -688,94 +697,118 @@ class SparingApp:
             min_age = interval + 60
 
             # ── Server 1 — AIR (pH/TSS/debit) belum terkirim ─────────────────
-            if int_on or klhk_on:
-                sent_ids = []
-                for rid, r in self.store.unsent_water("s1", 60, min_age):
-                    if self._resend_s1_water_row(r, int_on, klhk_on, url1):
-                        sent_ids.append(rid)
-                    else:
-                        break                       # key hilang/server down — stop
-                if sent_ids:
-                    self.store.mark_water_sent(sent_ids, "s1")
-                    self._log(f"[ARSIP] {len(sent_ids)} data air (S1) dikirim ulang")
+            self._resend_s1_rows(
+                self.store.unsent_water("s1", 60, min_age),
+                lambda r, processed: self.net.create_jwt1_water(r, processed=processed),
+                self.store.mark_water_sent, url1, int_on, klhk_on, "air")
 
             # ── Server 1 — UDARA (PM/noise/cuaca) belum terkirim ─────────────
-            if int_on or klhk_on:
-                sent_ids = []
-                for rid, d in self.store.unsent_air(60, min_age):
-                    if self._resend_s1_air_row(d, link, int_on, klhk_on, url1):
-                        sent_ids.append(rid)
-                    else:
-                        break
-                if sent_ids:
-                    self.store.mark_air_sent(sent_ids)
-                    self._log(f"[ARSIP] {len(sent_ids)} data udara (S1) dikirim ulang")
+            self._resend_s1_rows(
+                self.store.unsent_air(60, min_age),
+                lambda d, processed: self.net.create_jwt_s1_env(
+                    d["pm25"], d["pm10"], d["pm100"], d["noise"], d["ts"], link,
+                    processed=processed,
+                    wind_speed=d["wind_speed"], wind_dir=d["wind_dir"],
+                    air_temp=d["air_temp"], humidity=d["humidity"],
+                    pressure=d["pressure"]),
+                self.store.mark_air_sent, url1, int_on, klhk_on, "udara")
 
             # ── Server 2 (KLH) — dikelompokkan ulang jadi batch ──────────────
             if self.cfg.get("server2_enabled", True):
                 rows  = self.store.unsent_water("s2", batch_size * 6, min_age)
-                total = 0
+                total = rejected = 0
                 i     = 0
+                stopped = False
                 # (a) kirim batch PENUH dulu (kelipatan batch_size) — format per-jam KLH
                 while i + batch_size <= len(rows):
                     group = rows[i:i + batch_size]
-                    if self._resend_s2_batch([rr for _, rr in group], url2):
-                        self.store.mark_water_sent([rid for rid, _ in group], "s2")
-                        total += len(group)
-                        i     += batch_size
-                    else:
+                    res   = self._resend_s2_batch([rr for _, rr, _ in group], url2)
+                    if res == "fail":
+                        stopped = True              # key hilang/server down — stop
                         break
+                    ids = [rid for rid, _, _ in group]
+                    if res == "ok":
+                        self.store.mark_water_sent(ids, "s2")
+                        total += len(group)
+                    else:                           # ditolak → lewati, jangan menyumbat
+                        self.store.mark_water_sent(ids, "s2", REJECTED)
+                        rejected += len(group)
+                    i += batch_size
                 # (b) #3: ekor < batch_size → flush PARSIAL hanya jika MACET (tak ada
                 #     data baru selama ~1.5 jam) supaya data tak menggantung selamanya
                 tail = rows[i:]
-                if tail:
-                    newest = max(rr.timestamp for _, rr in tail)
+                if tail and not stopped:
+                    newest = max(rr.timestamp for _, rr, _ in tail)
                     stall  = batch_size * interval * 1.5
                     if time.time() - newest >= stall:
-                        if self._resend_s2_batch([rr for _, rr in tail], url2):
-                            self.store.mark_water_sent([rid for rid, _ in tail], "s2")
+                        res = self._resend_s2_batch([rr for _, rr, _ in tail], url2)
+                        ids = [rid for rid, _, _ in tail]
+                        if res == "ok":
+                            self.store.mark_water_sent(ids, "s2")
                             total += len(tail)
                             self._log(f"[ARSIP] batch parsial {len(tail)} data S2 "
                                       f"dikirim (pengumpulan data terhenti)")
+                        elif res == "rejected":
+                            self.store.mark_water_sent(ids, "s2", REJECTED)
+                            rejected += len(tail)
                 if total:
                     self._log(f"[ARSIP] total {total} data S2 dikirim ulang")
+                if rejected:
+                    self._log(f"[WARN] [ARSIP] {rejected} data S2 DITOLAK server — "
+                              f"dilewati, tetap tersimpan di data.db (sent_s2=2)")
 
             self.root.after(0, self.gui.update_buffer, self._buffer_count())
         except Exception as e:
             self._log(f"[ERROR] resend arsip: {e}")
 
-    # ── Helper resend — kirim satu baris ke SEMUA tujuan aktif ───────────────
-    def _resend_s1_water_row(self, r: SensorReading, int_on: bool,
-                             klhk_on: bool, url1: str) -> bool:
-        """Kirim ulang 1 baris air ke Internal + KLHK (yang aktif).
-        True hanya jika SEMUA tujuan aktif sukses (kalau tidak, biarkan unsent →
-        dicoba lagi siklus berikutnya). #2: varian KLHK tak lagi terlewat."""
-        all_ok = True
-        for processed in ([False] if int_on else []) + ([True] if klhk_on else []):
-            jwt = self.net.create_jwt1_water(r, processed=processed)
-            if not jwt or not self.net.post(url1, json.dumps({"token": jwt})):
-                all_ok = False
-        return all_ok
+    # ── Helper resend Server 1 — penanda per tujuan ──────────────────────────
+    def _resend_s1_rows(self, rows, make_jwt, mark, url1: str,
+                        int_on: bool, klhk_on: bool, label: str) -> None:
+        """
+        Kirim ulang baris arsip ke tujuan S1 yang MASIH tertunda saja
+        (Internal "s1" / KLHK "s1k") — tujuan yang sudah sukses tak dikirim dobel.
+          ok       → tandai terkirim
+          rejected → tandai DITOLAK & lanjut ke baris berikutnya (tak menyumbat)
+          fail     → berhenti (key hilang / server down), coba lagi siklus depan
+        Logger yang sudah dimatikan ditandai handled tanpa dikirim.
+        rows: [(id, data, tujuan_tertunda)]; make_jwt(data, processed) → JWT.
+        """
+        enabled = {"s1": int_on, "s1k": klhk_on}
+        marks: dict = {}                     # (tujuan, status) → [id]
+        n_ok = n_rej = 0
+        for rid, data, pending in rows:
+            res = None
+            for dest in pending:
+                if not enabled[dest]:
+                    marks.setdefault((dest, 1), []).append(rid)
+                    continue
+                jwt = make_jwt(data, dest == "s1k")
+                res = (self.net.post_result(url1, json.dumps({"token": jwt}))
+                       if jwt else "fail")
+                if res == "fail":
+                    break
+                if res == "ok":
+                    marks.setdefault((dest, 1), []).append(rid)
+                    n_ok += 1
+                else:
+                    marks.setdefault((dest, REJECTED), []).append(rid)
+                    n_rej += 1
+            if res == "fail":
+                break
+        for (dest, status), ids in marks.items():
+            mark(ids, dest, status)
+        if n_ok:
+            self._log(f"[ARSIP] {n_ok} kiriman data {label} (S1) dikirim ulang")
+        if n_rej:
+            self._log(f"[WARN] [ARSIP] {n_rej} kiriman data {label} (S1) DITOLAK "
+                      f"server — dilewati, tetap tersimpan di data.db (sent=2)")
 
-    def _resend_s1_air_row(self, d: dict, link: str, int_on: bool,
-                           klhk_on: bool, url1: str) -> bool:
-        """Kirim ulang 1 baris udara ke Internal + KLHK (yang aktif)."""
-        all_ok = True
-        for processed in ([False] if int_on else []) + ([True] if klhk_on else []):
-            jwt = self.net.create_jwt_s1_env(
-                d["pm25"], d["pm10"], d["pm100"], d["noise"], d["ts"], link,
-                processed=processed,
-                wind_speed=d["wind_speed"], wind_dir=d["wind_dir"],
-                air_temp=d["air_temp"], humidity=d["humidity"],
-                pressure=d["pressure"])
-            if not jwt or not self.net.post(url1, json.dumps({"token": jwt})):
-                all_ok = False
-        return all_ok
-
-    def _resend_s2_batch(self, readings: list, url2: str) -> bool:
-        """Encode + kirim satu batch ke Server 2 (KLH). True jika sukses."""
+    def _resend_s2_batch(self, readings: list, url2: str) -> str:
+        """Encode + kirim satu batch ke Server 2 (KLH) → "ok"/"rejected"/"fail"."""
         jwt2 = self.net.create_jwt2(readings)
-        return bool(jwt2) and self.net.post(url2, json.dumps({"token": jwt2}))
+        if not jwt2:
+            return "fail"
+        return self.net.post_result(url2, json.dumps({"token": jwt2}))
 
     # ── Indikator buffer di GUI ──────────────────────────────────────────────
     def _buffer_count(self) -> int:
@@ -916,7 +949,9 @@ class SparingApp:
             jwt_w = self.net.create_jwt1_water(r)
             if jwt_w and online and self.net.post(
                     self.cfg["server_url1"], json.dumps({"token": jwt_w})):
+                # Sukses → s1 & s1k sama-sama ditandai (seperti dulu sent_s1=1)
                 self.store.mark_water_sent(wid, "s1")
+                self.store.mark_water_sent(wid, "s1k")
                 sent += 1
             else:
                 saved += 1                       # tetap di arsip → resend nanti
@@ -927,6 +962,7 @@ class SparingApp:
             if jwt_e and online and self.net.post(
                     self.cfg["server_url1"], json.dumps({"token": jwt_e})):
                 self.store.mark_air_sent(aid)
+                self.store.mark_air_sent(aid, "s1k")
                 sent += 1
             else:
                 saved += 1

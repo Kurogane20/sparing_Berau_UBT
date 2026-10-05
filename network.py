@@ -498,6 +498,21 @@ class NetworkManager:
         """Versi post() yang mengembalikan HTTP status code (untuk deteksi 401)."""
         return self._do_post(url, body)
 
+    # 4xx yang berarti DATA-nya ditolak permanen — dikirim ulang pun tetap
+    # ditolak. 401/403 (key/akses), 404 (URL salah), 408/429 (timeout/rate
+    # limit) sengaja tidak termasuk: itu gangguan yang bisa pulih, tetap dicoba.
+    REJECT_CODES = (400, 409, 422)
+
+    def post_result(self, url: str, body: str) -> str:
+        """POST → "ok" (sukses), "rejected" (ditolak permanen, jangan kirim
+        ulang) atau "fail" (jaringan/server/key — layak dicoba ulang)."""
+        code = self._do_post(url, body)
+        if code in (200, 201):
+            return "ok"
+        if code in self.REJECT_CODES:
+            return "rejected"
+        return "fail"
+
     # ── Log ke server ─────────────────────────────────────────────────────────
     def post_log(self, message: str, level: str = "INFO") -> bool:
         """
